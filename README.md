@@ -37,11 +37,11 @@ T-Bone was created to cut out the boring repetitive parts so you can spend your 
 
 ## Installation
 
-To import T-Bone into another repository's `lib` directory, run the following commands:
+To import T-Bone into another repository's `app/lib` directory, run the following commands:
 
 ``` bash
 	# Register the GitHub repository as a submodule
-	git submodule add git@github.com:timkendrick/t-bone.git lib/t-bone
+	git submodule add git@github.com:timkendrick/t-bone.git app/lib/t-bone
 	
 	# Initialise the submodule contents
 	git submodule update --init
