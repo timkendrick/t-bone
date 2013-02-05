@@ -50,7 +50,9 @@ To import T-Bone into another repository's `lib` directory, run the following co
 T-Bone is packaged as an AMD module, so to use it in another module make sure to import it using your AMD loader:
 
 ```javascript
-	define(["lib/t-bone/Component"], function(Component) { // Your code here });
+	define(["lib/t-bone/Component"], function(Component) {
+		// Your code here
+	});
 ```
 
 
