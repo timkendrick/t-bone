@@ -1,6 +1,6 @@
 define(
 	[
-		"lodash",
+		"underscore",
 		"jquery",
 		"backbone"
 	],
