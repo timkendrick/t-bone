@@ -402,7 +402,7 @@ define(
 						_(generator.listeners).each(
 							function(listener) {
 								listener.handler = _handleGeneratorFieldChanged;
-								model.on("change:" + listener.field, _handleGeneratorFieldChanged);
+								self.bind(listener.field, _handleGeneratorFieldChanged);
 							}
 						);
 						
@@ -430,7 +430,7 @@ define(
 					function(generator, generatorName) {
 						_(generator.listeners).each(
 							function(listener) {
-								model.off("change:" + listener.field, listener.handler);
+								self.unbind(listener.field, listener.handler);
 								listener.handler = null;
 							}
 						);
@@ -689,8 +689,6 @@ define(
 			
 			_getClassBindings: function(parentElement) {
 				var $namedElements = this._getDataElements(parentElement, "data-class");
-				
-				var self = this;
 				
 				var classBindings = [];
 				
@@ -1188,7 +1186,8 @@ define(
 				
 				
 				function _handleRepeaterCollectionItemAdded(itemModel, repeaterCollection, options) {
-					self._addRepeaterSubview(repeaterBinding, itemModel, options.index);
+					var index = (options && ("index" in options) ? options.index : repeaterCollection.length - 1);
+					self._addRepeaterSubview(repeaterBinding, itemModel, index);
 				}
 				
 				function _handleRepeaterCollectionItemRemoved(itemModel, repeaterCollection, options) {
@@ -1517,8 +1516,8 @@ define(
 						}
 					}
 					
-					function _createChildModelListeners(model, fieldExpression, handler) {
-						var changeListener = _createModelListener(model, fieldExpression, handler);
+					function _createChildModelListeners(model, fieldExpression) {
+						var changeListener = _createModelListener(model, fieldExpression);
 						return [changeListener];
 					}
 					
@@ -1531,7 +1530,7 @@ define(
 						);
 					}
 						
-					function _createChildCollectionListeners(collection, index, fieldExpression, handler) {
+					function _createChildCollectionListeners(collection, index, fieldExpression) {
 						var addListener = new ModelListenerVO(collection, "add", _handleCollectionUpdated);
 						var removeListener = new ModelListenerVO(collection, "remove", _handleCollectionUpdated);
 						var resetListener = new ModelListenerVO(collection, "reset", _handleCollectionUpdated);
@@ -1546,7 +1545,7 @@ define(
 						var currentCollectionItem = collection.at(index);
 						
 						if (currentCollectionItem) {
-							childChangeListener = _createModelListener(currentCollectionItem, fieldExpression, handler);
+							childChangeListener = _createModelListener(currentCollectionItem, fieldExpression);
 							collectionListeners.push(childChangeListener);
 						}
 						
@@ -1566,8 +1565,13 @@ define(
 								childChangeListener = _createModelListener(currentCollectionItem, fieldExpression, handler);
 								collectionListeners.push(childChangeListener);
 							}
+							var handlerExpectsBindingValueAsParameter = (handler.length > 0);
 							
-							handler();
+							if (handlerExpectsBindingValueAsParameter) {
+								handler.call(context, self.getFieldValue(bindingExpression));
+							} else {
+								handler.call(context);
+							}
 						}
 					}
 					
