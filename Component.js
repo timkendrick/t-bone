@@ -1652,6 +1652,30 @@ define(
 					model: null
 				},
 				
+				initialize: function() {
+					if (this.has("model")) { this._addModelListeners(this.get("model")); }
+					this.on("change:model", this._handleModelChanged, this);
+				},
+				
+				_handleModelChanged: function(model, value) {
+					var previousModel = model.previous("model");
+					if (previousModel) { this._removeModelListeners(previousModel); }
+					var currentModel = value;
+					if (currentModel) { this._addModelListeners(currentModel); }
+				},
+				
+				_addModelListeners: function(model) {
+					model.on("destroy", this._handleModelDestroyed, this);
+				},
+				
+				_removeModelListeners: function(model) {
+					model.off("destroy", this._handleModelDestroyed, this);
+				},
+				
+				_handleModelDestroyed: function(model, collection, options) {
+					this.trigger("destroy", this, this.collection, options);
+				},
+				
 				toJSON: function() {
 					var model = this.get("model");
 					return (model ? model.toJSON() : {});
