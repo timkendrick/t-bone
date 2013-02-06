@@ -40,11 +40,11 @@ T-Bone was created to cut out the boring repetitive parts so you can spend your 
 To import T-Bone into another repository's `app/lib` directory, run the following commands:
 
 ``` bash
-	# Register the GitHub repository as a submodule
-	git submodule add git@github.com:timkendrick/t-bone.git app/lib/t-bone
-	
-	# Initialise the submodule contents
-	git submodule update --init
+# Register the GitHub repository as a submodule
+git submodule add git@github.com:timkendrick/t-bone.git app/lib/t-bone
+
+# Initialise the submodule contents
+git submodule update --init
 ```
 
 T-Bone is packaged as an AMD module, so to use it in another module make sure to import it using your AMD loader:
