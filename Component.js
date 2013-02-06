@@ -15,6 +15,17 @@ define(
 		var cachedComponentModelJSON = null;
 		var pendingStyles = "";
 		
+		var booleanAttributes = [
+			"checked",
+			"selected",
+			"disabled",
+			"readonly"
+		];
+		
+		var unsafeAttributes = booleanAttributes.concat([
+			"href",
+			"src"
+		]);
 		
 		var Component = Backbone.View.extend({
 			
@@ -164,6 +175,9 @@ define(
 				
 				// Preprocess the HTML string using the underscore templating engine
 				var html = _.template(template, context);
+				
+				// Replace any attributes that will be mangled by the conversion to a DOM element
+				html = this._sanitiseHTMLAttributes(template);
 				
 				// Create a DOM element from the HTML string
 				var element = $(html)[0];
@@ -568,22 +582,22 @@ define(
 							case "data-subview":
 							case "data-source":
 								continue;
-							
-							// Correct the name of the following attributes (IE6/7 mangles the binding expression if the normal attribute name is used)
-							case "data-src":
-							case "data-href":
-								
-								// Correct the attribute name
-								attributeName = attributeName.substr("data-".length);
-								
-								// Remove the attribute, seeing as it will be applied under a different name
-								element.removeAttributeNode(attribute);
-								
-								// Update the current index to reflect the fact that the attribute has been removed
-								i--;
-								
-								break;
 						}
+						
+						_(unsafeAttributes).each(function(unsafeAttribute) {
+							if (attributeName !== ("data-attribute-" + unsafeAttribute)) { return; }
+							
+							// Correct the attribute name
+							attributeName = attributeName.substr("data-attribute-".length);
+							
+							// Remove the attribute, seeing as it will be applied under a different name
+							element.removeAttributeNode(attribute);
+							
+							// Update the current index to reflect the fact that the attribute has been removed
+							i--;
+							
+							return false;
+						});
 						
 						// Search for binding values
 						var bindingListeners = null;
@@ -664,7 +678,11 @@ define(
 				
 				var bindingValue = this._replacePlaceholders(attributeBinding.expression, context);
 				
-				$(attributeBinding.element).attr(attributeName, bindingValue);
+				if (_(booleanAttributes).indexOf(attributeName) !== -1) {
+					$(attributeBinding.element).prop(attributeName, bindingValue === "true");
+				} else {
+					$(attributeBinding.element).attr(attributeName, bindingValue);
+				}
 			},
 			
 			
@@ -1304,6 +1322,15 @@ define(
 				if (_(currentObject).isUndefined()) { currentObject = null; }
 				
 				return currentObject;
+			},
+			
+			_sanitiseHTMLAttributes: function(html) {
+				_(unsafeAttributes).each(function(attributeName) {
+					var search = new RegExp('(' + attributeName + '="[^"]*\\{.*?")', "g");
+					html = html.replace(search, " data-attribute-$1");
+				});
+				
+				return html;
 			},
 			
 			_replacePlaceholders: function(expression, context) {
