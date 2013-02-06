@@ -1101,7 +1101,9 @@ define(
 						
 						element.removeAttribute("data-source");
 						
-						var subviewClass = Component.extend({ template: $element.html() });
+						var subviewTemplate = $element.html();
+						
+						var subviewClass = (subviewTemplate ? Component.extend({ template: subviewTemplate }) : null);
 						
 						$element.empty();
 						
@@ -1228,7 +1230,7 @@ define(
 			},
 			
 			_addRepeaterSubview: function(repeaterBinding, itemModel, index) {
-				var subviewBindingModel = new Component.SubviewBinding({ view: repeaterBinding.subviewClass, model: itemModel });
+				var subviewBindingModel = (itemModel instanceof Component.SubviewBinding ? itemModel : new Component.SubviewBinding({ view: repeaterBinding.subviewClass, model: itemModel }));
 				var subviewBinding = new SubviewBindingVO(repeaterBinding.container, repeaterBinding.field + "[" + index + "]", null, subviewBindingModel);
 				
 				this._activateSubviewBinding(subviewBinding);
