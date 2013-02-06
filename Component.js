@@ -1446,12 +1446,12 @@ define(
 					var currentObject = this;
 					
 					while (currentObject && (currentFieldNameComponent = fieldNameComponents.shift())) {
-						var arrayTest = /^(.+)\[(\d+)\]$/.exec(currentFieldNameComponent);
+						var arrayTest = /^(.+)\[(\d+)?\]$/.exec(currentFieldNameComponent);
 						if (arrayTest) {
 							currentFieldNameComponent = arrayTest[1];
-							var arrayIndex = Number(arrayTest[2]);
+							var arrayIndex = (arrayTest[2] ? Number(arrayTest[2]) : -1);
 							var collection = (currentObject instanceof Backbone.Model ? currentObject.get(currentFieldNameComponent) : currentObject[currentFieldNameComponent]);
-							currentObject = (collection instanceof Backbone.Collection ? collection.at(arrayIndex) : collection[arrayIndex]);
+							currentObject = (arrayIndex === -1 ? collection : (collection instanceof Backbone.Collection ? collection.at(arrayIndex) : collection[arrayIndex]));
 						} else {
 							currentObject = (currentObject instanceof Backbone.Model ? currentObject.get(currentFieldNameComponent) : currentObject[currentFieldNameComponent]);
 						}
@@ -1488,10 +1488,10 @@ define(
 						var childFieldName = fieldExpression.substr(currentFieldName.length + ".".length);
 						
 						var collectionIndex = -1;
-						var arrayMatch = /^(.+)\[(\d+)\]$/.exec(currentFieldName);
+						var arrayMatch = /^(.+)\[(\d+)?\]$/.exec(currentFieldName);
 						if (arrayMatch) {
 							currentFieldName = arrayMatch[1];
-							collectionIndex = Number(arrayMatch[2]);
+							collectionIndex = (arrayMatch[2] ? Number(arrayMatch[2]) : -1);
 						}
 						
 						var fieldListener = new ModelListenerVO(model, "change:" + currentFieldName, _handleCurrentValueChanged);
@@ -1500,7 +1500,7 @@ define(
 						var currentValue = model.get(currentFieldName);
 						
 						if (childFieldName && (currentValue instanceof Backbone.Model)) { fieldListener.childListeners = _createChildModelListeners(currentValue, childFieldName); }
-						if ((collectionIndex !== -1) && (currentValue instanceof Backbone.Collection)) { fieldListener.childListeners = _createChildCollectionListeners(currentValue, collectionIndex, childFieldName); }
+						if (arrayMatch && (currentValue instanceof Backbone.Collection)) { fieldListener.childListeners = _createChildCollectionListeners(currentValue, collectionIndex, childFieldName); }
 						
 						return fieldListener;
 						
@@ -1544,7 +1544,7 @@ define(
 						
 						var collectionListeners = [addListener, removeListener, resetListener];
 						
-						var currentCollectionItem = collection.at(index);
+						var currentCollectionItem = (index !== -1 ? collection.at(index) : null);
 						
 						if (currentCollectionItem) {
 							childChangeListener = _createModelListener(currentCollectionItem, fieldExpression);
@@ -1555,17 +1555,19 @@ define(
 						
 						
 						function _handleCollectionUpdated() {
-							var newCollectionItem = collection.at(index);
-							if (newCollectionItem === currentCollectionItem) { return; }
-							if (currentCollectionItem) {
-								_deactivateChildModelListeners(childChangeListener.childListeners);
-								childChangeListener.model.off(childChangeListener.event, childChangeListener.handler);
-								collectionListeners.splice(collectionListeners.indexOf(childChangeListener), 1);
-							}
-							currentCollectionItem = newCollectionItem;
-							if (currentCollectionItem) {
-								childChangeListener = _createModelListener(currentCollectionItem, fieldExpression, handler);
-								collectionListeners.push(childChangeListener);
+							if (index !== -1) {
+								var newCollectionItem = collection.at(index);
+								if (newCollectionItem === currentCollectionItem) { return; }
+								if (currentCollectionItem) {
+									_deactivateChildModelListeners(childChangeListener.childListeners);
+									childChangeListener.model.off(childChangeListener.event, childChangeListener.handler);
+									collectionListeners.splice(collectionListeners.indexOf(childChangeListener), 1);
+								}
+								currentCollectionItem = newCollectionItem;
+								if (currentCollectionItem) {
+									childChangeListener = _createModelListener(currentCollectionItem, fieldExpression);
+									collectionListeners.push(childChangeListener);
+								}
 							}
 							var handlerExpectsBindingValueAsParameter = (handler.length > 0);
 							
