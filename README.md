@@ -50,15 +50,17 @@ git submodule update --init
 T-Bone is packaged as an AMD module, so to use it in another module make sure to import it using your AMD loader:
 
 ```javascript
-	define(["lib/t-bone/Component"], function(Component) {
-		// Your code here
-	});
+define(["lib/t-bone/Component"], function(Component) {
+	// Your code here
+});
 ```
 
 
 ## Example project
 
 The example project at https://github.com/timkendrick/t-bone-template provides a simple template for new T-Bone projects
+
+For a more in-depth code example, check out the T-Bone [TodoMVC](http://addyosmani.github.com/todomvc/) implementation at https://github.com/timkendrick/t-bone-todomvc
 
 
 ## Getting started
