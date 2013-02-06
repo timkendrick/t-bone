@@ -1,7 +1,7 @@
 T-Bone component framework
 ==========================
 
-Beefing up Backbone views with data bindings, subviews, repeaters and more
+_Beefing up Backbone views with data bindings, subviews, repeaters and more!_
 
 
 ## The motivation behind T-Bone
