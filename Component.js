@@ -498,7 +498,7 @@ define(
 								
 								// Search for binding values
 								var bindingListeners = null;
-								var bindingPattern = /\{(:?)[%!]?(.*?)\}/g;
+								var bindingPattern = /\{(:?)[%@!]?(.*?)\}/g;
 								var result;
 								while ((result = bindingPattern.exec(bindingExpression))) {
 									
@@ -625,7 +625,7 @@ define(
 						
 						// Search for binding values
 						var bindingListeners = null;
-						var bindingPattern = /\{(:?)[%!]?(.+?)\}/g;
+						var bindingPattern = /\{(:?)[%@!]?(.+?)\}/g;
 						var result;
 						while ((result = bindingPattern.exec(bindingExpression))) {
 							
@@ -1329,11 +1329,18 @@ define(
 				context = context || this.getRenderContext();
 				
 				// Search through any placeholders in the binding expression
-				var bindingPlaceholderSearch = /\{:?([%!]?)(.*?)\}/g;
+				var bindingPlaceholderSearch = /\{:?([%@!]?)(.*?)\}/g;
 				
 				var bindingTransformFunctions = {
-					"!": function (value) { return value; },
-					"%": window.encodeURIComponent
+					"!": function (value) {
+						return !value;
+					},
+					"@": function (value) {
+						return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+					},
+					"%": function(value) {
+						return window.encodeURIComponent(value);
+					}
 				};
 				
 				var result;
