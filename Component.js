@@ -197,7 +197,7 @@ define(
 				var html = _.template(template, context);
 				
 				// Replace any attributes that will be mangled by the conversion to a DOM element
-				html = this._sanitiseHTMLAttributes(template);
+				html = this._sanitiseHTMLAttributes(html);
 				
 				// Create a DOM element from the HTML string
 				var element = $(html)[0];
