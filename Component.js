@@ -446,6 +446,7 @@ define(
 			_removeModelListeners: function(model) {
 				model.off("change:style", this._handleModelStyleChanged, this);
 				
+				var self = this;
 				_(this._generators).each(
 					function(generator, generatorName) {
 						_(generator.listeners).each(
