@@ -16,10 +16,30 @@ define(
 		var pendingStyles = "";
 		
 		var booleanAttributes = [
+			"async",
+			"autofocus",
+			"autoplay",
 			"checked",
-			"selected",
+			"controls",
+			"default",
+			"defer",
 			"disabled",
-			"readonly"
+			"formnovalidate",
+			"hidden",
+			"ismap",
+			"loop",
+			"multiple",
+			"muted",
+			"novalidate",
+			"open",
+			"readonly",
+			"required",
+			"reversed",
+			"scoped",
+			"seamless",
+			"selected",
+			"truespeed",
+			"typemustmatch"
 		];
 		
 		var unsafeAttributes = booleanAttributes.concat([
