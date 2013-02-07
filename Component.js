@@ -12,6 +12,8 @@ define(
 	) {
 		"use strict";
 		
+		var components = {};
+		
 		var cachedComponentModelJSON = null;
 		var pendingStyles = "";
 		
@@ -177,7 +179,7 @@ define(
 						
 						// Subview and repeater bindings
 						self._activateSubviewBindings();
-						self._addSubviews();
+						self._updateSubviewBindings();
 						self._activateRepeaterBindings();
 						self._updateRepeaterBindings();
 					}
@@ -602,6 +604,7 @@ define(
 							case "data-style":
 							case "data-subview":
 							case "data-source":
+							case "data-template":
 								continue;
 						}
 						
@@ -906,9 +909,27 @@ define(
 						
 						element.removeAttribute("data-subview");
 						
+						var viewClass = null;
+						
+						var viewClassID = $element.attr("data-template") || null;
+						var viewClassTemplate = $element.html();
+						$element.empty();
+						
+						if (viewClassID) {
+							
+							viewClass = Component.get(viewClassID);
+							if (!viewClass) { throw new Error("Invalid subview template specified: \"" + viewClassID + "\""); }
+							element.removeAttribute("data-template");
+							
+						} else if (viewClassTemplate) {
+							
+							viewClass = Component.extend({ template: viewClassTemplate });
+							
+						}
+						
 						var bindingListener = new ListenerVO(subviewField);
 						
-						return new SubviewBindingVO(element, subviewField, bindingListener);
+						return new SubviewBindingVO(element, subviewField, viewClass, bindingListener);
 					},
 					this
 				);
@@ -918,110 +939,38 @@ define(
 				_(this._subviewBindings).each(function(subviewBinding) { this._activateSubviewBinding(subviewBinding); }, this);
 			},
 			
+			_updateSubviewBindings: function() {
+				_(this._subviewBindings).each(function(subviewBinding) { this._updateSubviewBinding(subviewBinding); }, this);
+			},
+			
 			_activateSubviewBinding: function(subviewBinding) {
-				
-				if (!subviewBinding.model) {
-					subviewBinding.model = this._getFieldValue(subviewBinding.field);
-				}
-				
-				var currentSubviewBindingModel = subviewBinding.model;
-				var CurrentSubviewViewClass = (subviewBinding.model ? currentSubviewBindingModel.get("view") : null);
-				var currentSubviewModel = (subviewBinding.model ? currentSubviewBindingModel.get("model") : null);
-				
-				// Update the subview binding
-				var subview = (CurrentSubviewViewClass ? new CurrentSubviewViewClass({ model: currentSubviewModel }) : null);
-				subviewBinding.subview = subview;
 				
 				var self = this;
 				
 				if (subviewBinding.listener) {
-					this.bind(subviewBinding.listener.field, _handleModelFieldChanged);
-					subviewBinding.listener.handler = _handleModelFieldChanged;
+					this.bind(subviewBinding.listener.field, _handleSubviewModelFieldChanged);
+					subviewBinding.listener.handler = _handleSubviewModelFieldChanged;
 				}
 				
-				if (currentSubviewBindingModel) {
-					currentSubviewBindingModel.on("change:view", _handleModelFieldChanged, this);
-					currentSubviewBindingModel.on("change:model", _handleModelFieldChanged, this);
-				}
 				
-				return subview;
-				
-				
-				function _handleModelFieldChanged() {
-					var newSubviewBindingModel = self._getFieldValue(subviewBinding.listener.field);
-					var NewSubviewViewClass = (newSubviewBindingModel ? newSubviewBindingModel.get("view") : null);
-					var newSubviewModel = (newSubviewBindingModel ? newSubviewBindingModel.get("model") : null);
-					
-					var subviewBindingModelChanged = (newSubviewBindingModel !== currentSubviewBindingModel);
-					var subviewViewChanged = (NewSubviewViewClass !== CurrentSubviewViewClass);
-					var subviewModelChanged = (newSubviewModel !== currentSubviewModel);
-					
-					if (subviewBindingModelChanged) {
-						if (currentSubviewBindingModel) {
-							currentSubviewBindingModel.off("change:view", _handleModelFieldChanged, self);
-							currentSubviewBindingModel.off("change:model", _handleModelFieldChanged, self);
-						}
-						if (newSubviewBindingModel) {
-							newSubviewBindingModel.on("change:view", _handleModelFieldChanged, self);
-							newSubviewBindingModel.on("change:model", _handleModelFieldChanged, self);
-						}
-					}
-					
-					if (subviewViewChanged) {
-						
-						self._updateSubviewBindingView(subviewBinding);
-						
-					} else if (subviewModelChanged) {
-						
-						self._updateSubviewBindingModel(subviewBinding);
-						
-					}
-					
-					currentSubviewBindingModel = newSubviewBindingModel;
-					CurrentSubviewViewClass = NewSubviewViewClass;
-					currentSubviewModel = newSubviewModel;
+				function _handleSubviewModelFieldChanged() {
+					self._updateSubviewBinding(subviewBinding);
 				}
 			},
 			
-			_updateSubviewBindingView: function(subviewBinding) {
+			_updateSubviewBinding: function(subviewBinding) {
+				// If there was an old subview, remove it
+				if (subviewBinding.subview) { this._removeSubview(subviewBinding); }
 				
-				var oldSubview = subviewBinding.subview;
-				var newSubviewBindingModel = this._getFieldValue(subviewBinding.field);
-				var NewSubviewViewClass = newSubviewBindingModel && newSubviewBindingModel.get("view");
-				var newSubviewModel = newSubviewBindingModel && newSubviewBindingModel.get("model");
-				
-				// Remove the old subview if one exists
-				if (oldSubview) {
-					if (this.active && oldSubview.deactivate) { oldSubview.deactivate(); }
-					this._removeSubview(subviewBinding);
-				}
+				// Get the subview model from the subview binding field
+				var subviewModel = this._getFieldValue(subviewBinding.field);
 				
 				// Create the new subview
-				var subview = (NewSubviewViewClass ? new NewSubviewViewClass({ model: newSubviewModel }) : null);
+				var subview = this._createSubview(subviewBinding, subviewModel);
 				subviewBinding.subview = subview;
 				
-				// Add the new subview if one exists
-				if (subview) {
-					this._addSubview(subviewBinding);
-					if (this.active) {
-						if (subview.activate) { subview.activate(); }
-						if (subview.updateSize) { subview.updateSize(); }
-					}
-				}
-			},
-			
-			_updateSubviewBindingModel: function(subviewBinding) {
-				// Get the new subview model value
-				var newSubviewBindingModel = this._getFieldValue(subviewBinding.field);
-				var newSubviewModel = newSubviewBindingModel && newSubviewBindingModel.get("model");
-				
-				var oldSubview = subviewBinding.subview;
-				
-				// Replace the old subview's model, rather than the whole thing
-				oldSubview.model = newSubviewModel;
-				
-				// Update the old subview of changes to its model 
-				oldSubview.render();
+				// Activate the new subview if one was created successfully
+				if (subviewBinding.subview) { this._addSubview(subviewBinding); }
 			},
 			
 			_deactivateSubviewBindings: function() {
@@ -1033,26 +982,30 @@ define(
 			
 			_deactivateSubviewBinding: function(subviewBinding) {
 				
-				var subviewBindingModel = subviewBinding.model;
-				
-				subviewBinding.model = null;
-				
 				if (subviewBinding.listener) {
-					
-					if (subviewBindingModel) {
-						subviewBindingModel.off("change:view", subviewBinding.listener.handler, this);
-						subviewBindingModel.off("change:model", subviewBinding.listener.handler, this);
-					}
 					
 					this.unbind(subviewBinding.listener.field, subviewBinding.listener.handler);
 					subviewBinding.listener.handler = null;
 				}
 			},
 			
-			_addSubviews: function() {
+			_createSubview: function(subviewBinding, subviewModel) {
+				var viewClass = null;
 				
-				_(this._subviewBindings).each(function(subviewBinding) { if (subviewBinding.subview) { this._addSubview(subviewBinding); } }, this);
+				// If model specifies its own view class, that will override the default value
+				if (subviewModel && subviewModel.has("view")) {
+					
+					var componentID = subviewModel.get("view");
+					viewClass = Component.get(componentID);
+					if (!viewClass) { throw new Error("Invalid subview template specified: \"" +  componentID + "\""); }
+					
+				} else if (subviewBinding.subviewClass) {
+					
+					viewClass = subviewBinding.subviewClass;
+					
+				}
 				
+				return (viewClass ? new viewClass({ model: subviewModel }) : null);
 			},
 			
 			_addSubview: function(subviewBinding, elementIndex) {
@@ -1078,6 +1031,11 @@ define(
 					$(subviewBinding.container).append(subview.$el);
 				}
 				
+				if (this.active) {
+					if (subview.activate) { subview.activate(); }
+					if (subview.updateSize) { subview.updateSize(); }
+				}
+				
 				return subview;
 			},
 			
@@ -1087,6 +1045,9 @@ define(
 			
 			_removeSubview: function(subviewBinding) {
 				var subview = subviewBinding.subview;
+				
+				// Deactivate the subview
+				if (this.active) { subview.deactivate(); }
 				
 				// Remove the subview from the container element
 				if(subview.el && (subview.el.parentNode === subviewBinding.container)) { subview.$el.remove(); }
@@ -1122,15 +1083,27 @@ define(
 						
 						element.removeAttribute("data-source");
 						
-						var subviewTemplate = $element.html();
+						var viewClass = null;
 						
-						var subviewClass = (subviewTemplate ? Component.extend({ template: subviewTemplate }) : null);
-						
+						var viewClassID = $element.attr("data-template") || null;
+						var viewClassTemplate = $element.html();
 						$element.empty();
+						
+						if (viewClassID) {
+							
+							viewClass = Component.get(viewClassID);
+							if (!viewClass) { throw new Error("Invalid subview template specified: \"" + viewClassID + "\""); }
+							element.removeAttribute("data-template");
+							
+						} else if (viewClassTemplate) {
+							
+							viewClass = Component.extend({ template: viewClassTemplate });
+							
+						}
 						
 						var bindingListener = new ListenerVO(repeaterField);
 						
-						return new RepeaterBindingVO(element, repeaterField, subviewClass, bindingListener);
+						return new RepeaterBindingVO(element, repeaterField, viewClass, bindingListener);
 					},
 					this
 				);
@@ -1225,8 +1198,6 @@ define(
 					// Remove the old subviews
 					for (i = numOldSubviews - 1; i >= 0; i--) { self._removeRepeaterSubview(repeaterBinding, i); }
 					
-					var context = self.getRenderContext();
-					
 					// Add the new subviews
 					for (i = 0; i < numNewSubviews; i++) { self._addRepeaterSubview(repeaterBinding, collection.at(i), i); }
 				}
@@ -1251,16 +1222,17 @@ define(
 			},
 			
 			_addRepeaterSubview: function(repeaterBinding, itemModel, index) {
-				var subviewBindingModel = (itemModel instanceof Component.SubviewBinding ? itemModel : new Component.SubviewBinding({ view: repeaterBinding.subviewClass, model: itemModel }));
-				var subviewBinding = new SubviewBindingVO(repeaterBinding.container, repeaterBinding.field + "[" + index + "]", null, subviewBindingModel);
+				var subviewBinding = new SubviewBindingVO(repeaterBinding.container, repeaterBinding.field + "[" + index + "]", repeaterBinding.subviewClass);
 				
-				this._activateSubviewBinding(subviewBinding);
-				this._addSubview(subviewBinding, index);
+				subviewBinding.subview = this._createSubview(subviewBinding, itemModel);
 				
-				if (this.active) {
-					if (subviewBinding.subview.activate) { subviewBinding.subview.activate(); }
-					if (subviewBinding.subview.updateSize) { subviewBinding.subview.updateSize(); }
-				}
+				// Determine the correct index at which to insert the DOM element
+				// (bearing in mind that some previous items in the repeater might have no subview specified)
+				var elementIndex = _(repeaterBinding.subviewBindings.slice(0, index)).filter(
+					function(subviewBinding) { return !!subviewBinding.subview; }
+				).length;
+				
+				this._addSubview(subviewBinding, elementIndex);
 				
 				repeaterBinding.subviewBindings.splice(index, 0, subviewBinding);
 				this.repeaters[repeaterBinding.field].splice(index, 0, subviewBinding.subview);
@@ -1269,8 +1241,6 @@ define(
 			_removeRepeaterSubview: function(repeaterBinding, index) {
 				var subviewBinding = repeaterBinding.subviewBindings[index];
 				
-				this._deactivateSubviewBinding(subviewBinding);
-				if (this.active && subviewBinding.subview.deactivate) { subviewBinding.subview.deactivate(); }
 				this._removeSubview(subviewBinding);
 				
 				repeaterBinding.subviewBindings.splice(index, 1);
@@ -1668,84 +1638,46 @@ define(
 				}
 			}),
 			
-			SubviewBinding: Backbone.Model.extend({
-				
-				defaults: {
-					view: null,
-					model: null
-				},
-				
-				initialize: function() {
-					if (this.has("model")) { this._addModelListeners(this.get("model")); }
-					this.on("change:model", this._handleModelChanged, this);
-				},
-				
-				_handleModelChanged: function(model, value) {
-					var previousModel = model.previous("model");
-					if (previousModel) { this._removeModelListeners(previousModel); }
-					var currentModel = value;
-					if (currentModel) { this._addModelListeners(currentModel); }
-				},
-				
-				_addModelListeners: function(model) {
-					model.on("destroy", this._handleModelDestroyed, this);
-				},
-				
-				_removeModelListeners: function(model) {
-					model.off("destroy", this._handleModelDestroyed, this);
-				},
-				
-				_handleModelDestroyed: function(model, collection, options) {
-					this.trigger("destroy", this, this.collection, options);
-				},
-				
-				toJSON: function() {
-					var model = this.get("model");
-					return (model ? model.toJSON() : {});
-				},
-				
-				clone: function() {
-					var values = {};
-					
-					_(this.attributes).each(
-						function(fieldValue, fieldName) {
-							if (typeof fieldValue !== "undefined") {
-								values[fieldName] = ((fieldValue instanceof Backbone.Model) || (fieldValue instanceof Backbone.Collection) ? fieldValue.clone() : fieldValue);
-							}
-						}
-					);
-					
-					return new (this.constructor)(values);
-				}
-			}),
+			get: function(componentID) {
+				return components[componentID] || null;
+			},
 			
-			registerStyle: function(componentStyle) {
+			register: function(component, componentID, componentStyle) {
+				if (componentID) { components[componentID] = component; }
 				
-				if (pendingStyles) {
-					
-					pendingStyles += "\n\n" + componentStyle;
-					
-				} else {
-					
-					pendingStyles = componentStyle || "";
-					if (!pendingStyles) { return; }
-					
-					setTimeout(
-						function() {
-							_addStyleSheet(pendingStyles);
-							pendingStyles = "";
-						},
-						0
-					);
-				}
+				if (componentStyle) { _injectStyle(componentStyle); }
+				
+				return component;
 				
 				
-				function _addStyleSheet(css) {
-					if (document.createStyleSheet) {
-						var stylesheet = document.createStyleSheet();
-						stylesheet.cssText = css;
+				function _injectStyle(componentStyle) {
+					
+					if (pendingStyles) {
+						
+						pendingStyles += "\n\n" + componentStyle;
+						
 					} else {
-						$("head").append("<style type=\"text/css\">" + css + "</style>");
+						
+						pendingStyles = componentStyle || "";
+						if (!pendingStyles) { return; }
+						
+						setTimeout(
+							function() {
+								_addStyleSheet(pendingStyles);
+								pendingStyles = "";
+							},
+							0
+						);
+					}
+					
+					
+					function _addStyleSheet(css) {
+						if (document.createStyleSheet) {
+							var stylesheet = document.createStyleSheet();
+							stylesheet.cssText = css;
+						} else {
+							$("head").append("<style type=\"text/css\">" + css + "</style>");
+						}
 					}
 				}
 			}
@@ -1801,11 +1733,11 @@ define(
 			this.listener = listener || null;
 		}
 		
-		function SubviewBindingVO(container, field, listener, model) {
+		function SubviewBindingVO(container, field, subviewClass, listener) {
 			this.container = container;
 			this.field = field;
+			this.subviewClass = subviewClass || null;
 			this.listener = listener || null;
-			this.model = model || null;
 			this.subview = null;
 		}
 		
