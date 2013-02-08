@@ -13,6 +13,7 @@ define(
 		"use strict";
 		
 		var components = {};
+		var css = "";
 		
 		var cachedComponentModelJSON = null;
 		var pendingStyles = "";
@@ -1665,39 +1666,22 @@ define(
 			register: function(component, componentID, componentStyle) {
 				if (componentID) { components[componentID] = component; }
 				
-				if (componentStyle) { _injectStyle(componentStyle); }
+				if (componentStyle) { css += "\n\n/* " + componentID + " */\n\n" + componentStyle; }
 				
 				return component;
+			},
+			
+			init: function() {
+				
+				_injectStyleSheet(css);
 				
 				
-				function _injectStyle(componentStyle) {
-					
-					if (pendingStyles) {
-						
-						pendingStyles += "\n\n" + componentStyle;
-						
+				function _injectStyleSheet(css) {
+					if (document.createStyleSheet) {
+						var stylesheet = document.createStyleSheet();
+						stylesheet.cssText = css;
 					} else {
-						
-						pendingStyles = componentStyle || "";
-						if (!pendingStyles) { return; }
-						
-						setTimeout(
-							function() {
-								_addStyleSheet(pendingStyles);
-								pendingStyles = "";
-							},
-							0
-						);
-					}
-					
-					
-					function _addStyleSheet(css) {
-						if (document.createStyleSheet) {
-							var stylesheet = document.createStyleSheet();
-							stylesheet.cssText = css;
-						} else {
-							$("head").append("<style type=\"text/css\">" + css + "</style>");
-						}
+						$("head").append('<style type=\"text/css\" data-tbone="true">' + css + '</style>');
 					}
 				}
 			}
