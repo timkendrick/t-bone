@@ -1352,7 +1352,7 @@ define(
 						return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 					},
 					"%": function(value) {
-						return window.encodeURIComponent(value);
+						return encodeURIComponent(value);
 					}
 				};
 				
