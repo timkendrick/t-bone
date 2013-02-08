@@ -300,7 +300,7 @@ define(
 				this.unload();
 				
 				// Remove the DOM element
-				Backbone.View.protoype.remove.call(this);
+				Backbone.View.prototype.remove.call(this);
 				
 				// Clear any manually-added binding listeners
 				this.unbind();
