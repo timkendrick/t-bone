@@ -164,20 +164,14 @@ define(
 					
 					function _activateBindings(context) {
 						// Data and attribute bindings
-						self._activateDataBindings();
-						self._updateDataBindings(context);
-						self._activateAttributeBindings();
-						self._updateAttributeBindings(context);
-						self._activateClassBindings();
-						self._updateClassBindings(context);
-						self._activateStyleBindings();
-						self._updateStyleBindings(context);
+						self._activateDataBindings(context);
+						self._activateAttributeBindings(context);
+						self._activateClassBindings(context);
+						self._activateStyleBindings(context);
 						
 						// Subview and repeater bindings
 						self._activateSubviewBindings();
-						self._updateSubviewBindings();
 						self._activateRepeaterBindings();
-						self._updateRepeaterBindings();
 					}
 				}
 			},
@@ -340,23 +334,20 @@ define(
 				
 				
 				function _createBindingListener(bindingExpression) {
-					
 					var rootField = /[^\.\[$]+/.exec(bindingExpression)[0];
 					var isGeneratedField = (rootField in self._generators);
 					
-					var value = null;
 					if (isGeneratedField) {
 						
-						value = self.get(bindingExpression);
 						self.on("change:" + rootField, _handleBindingValueChanged);
 						
 					} else {
 						
-						if (self._currentModel) { value = self._currentModel.bind(bindingExpression, _handleBindingValueChanged); }
+						if (self._currentModel) { self._currentModel.bind(bindingExpression, _handleBindingValueChanged); }
 						
 					}
 					
-					var bindingListener = new BindingVO(bindingExpression, _handleBindingValueChanged, null, value);
+					var bindingListener = new BindingVO(bindingExpression, _handleBindingValueChanged, null);
 					
 					return bindingListener;
 					
@@ -434,7 +425,7 @@ define(
 						
 						_(generatorListenerExpressions).each(
 							function(generatorListenerExpression) {
-								generatorListeners.push(new ListenerVO(generatorListenerExpression));
+								generatorListeners.push(new BindingVO(generatorListenerExpression));
 							},
 							this
 						);
@@ -453,9 +444,9 @@ define(
 				_(this._generators).each(
 					function(generator, generatorName) {
 						_(generator.listeners).each(
-							function(listener) {
-								listener.handler = _handleGeneratorFieldChanged;
-								self.bind(listener.field, _handleGeneratorFieldChanged);
+							function(binding) {
+								binding.handler = _handleGeneratorFieldChanged;
+								self.bind(binding.expression, _handleGeneratorFieldChanged);
 							}
 						);
 						
@@ -486,9 +477,9 @@ define(
 				_(this._generators).each(
 					function(generator, generatorName) {
 						_(generator.listeners).each(
-							function(listener) {
-								self.unbind(listener.field, listener.handler);
-								listener.handler = null;
+							function(binding) {
+								self.unbind(binding.expression, binding.handler);
+								binding.handler = null;
 							}
 						);
 					}
@@ -544,7 +535,7 @@ define(
 									
 									bindingListeners = bindingListeners || [];
 									
-									if (bindingIgnoreFlag !== ":") { bindingListeners.push(new ListenerVO(bindingField)); }
+									if (bindingIgnoreFlag !== ":") { bindingListeners.push(new BindingVO(bindingField)); }
 								}
 								
 								if (bindingListeners) { dataBindings.push(new DataBindingVO(element, bindingExpression, bindingListeners)); }
@@ -567,41 +558,48 @@ define(
 				}
 			},
 			
-			_activateDataBindings: function() {
-				_(this._dataBindings).each(function(dataBinding) { this._activateDataBinding(dataBinding); }, this);
+			_activateDataBindings: function(context) {
+				_(this._dataBindings).each(function(dataBinding) { this._activateDataBinding(dataBinding, context); }, this);
 			},
 			
 			_deactivateDataBindings: function() {
 				_(this._dataBindings).each(function(dataBinding) { this._deactivateDataBinding(dataBinding); }, this);
 			},
 			
-			_updateDataBindings: function(context) {
-				context = context || this.getRenderContext();
-				_(this._dataBindings).each(function(dataBinding) { this._updateDataBinding(dataBinding, context); }, this);
-			},
-			
-			_activateDataBinding: function(dataBinding) {
+			_activateDataBinding: function(dataBinding, context) {
 				var self = this;
 				
 				_(dataBinding.listeners).each(
-					function(listener) {
-						this.bind(listener.field, _handleDataBindingFieldUpdated);
-						listener.handler = _handleDataBindingFieldUpdated;
+					function(binding) {
+						this.bind(binding.expression, _handleDataBindingFieldUpdated);
+						binding.value = this._getFieldValue(binding.expression, context);
+						binding.handler = _handleDataBindingFieldUpdated;
+						
+						
+						function _handleDataBindingFieldUpdated(value) {
+							binding.value = value;
+							var context = _(dataBinding.listeners).reduce(
+								function(context, listener) {
+									context[listener.expression] = listener.value;
+									return context;
+								},
+								{}
+							);
+							self._updateDataBinding(dataBinding, context);
+						}
 					},
 					this
 				);
 				
-				
-				function _handleDataBindingFieldUpdated() {
-					self._updateDataBinding(dataBinding);
-				}
+				this._updateDataBinding(dataBinding, context);
 			},
 			
 			_deactivateDataBinding: function(dataBinding) {
 				_(dataBinding.listeners).each(
-					function(listener) {
-						this.unbind(listener.field, listener.handler);
-						listener.handler = null;
+					function(binding) {
+						this.unbind(binding.expression, binding.handler);
+						binding.handler = null;
+						binding.value = null;
 					},
 					this
 				);
@@ -671,7 +669,7 @@ define(
 							
 							bindingListeners = bindingListeners || [];
 							
-							if (bindingIgnoreFlag !== ":") { bindingListeners.push(new ListenerVO(bindingField)); }
+							if (bindingIgnoreFlag !== ":") { bindingListeners.push(new BindingVO(bindingField)); }
 						}
 						
 						if (bindingListeners) { attributeBindings.push(new AttributeBindingVO(element, attributeName, bindingExpression, bindingListeners)); }
@@ -690,41 +688,48 @@ define(
 				}
 			},
 			
-			_activateAttributeBindings: function() {
-				_(this._attributeBindings).each(function(attributeBinding) { this._activateAttributeBinding(attributeBinding); }, this);
+			_activateAttributeBindings: function(context) {
+				_(this._attributeBindings).each(function(attributeBinding) { this._activateAttributeBinding(attributeBinding, context); }, this);
 			},
 			
 			_deactivateAttributeBindings: function() {
 				_(this._attributeBindings).each(function(attributeBinding) { this._deactivateAttributeBinding(attributeBinding); }, this);
 			},
 			
-			_updateAttributeBindings: function(context) {
-				context = context || this.getRenderContext();
-				_(this._attributeBindings).each(function(attributeBinding) { this._updateAttributeBinding(attributeBinding, context); }, this);
-			},
-			
-			_activateAttributeBinding: function(attributeBinding) {
+			_activateAttributeBinding: function(attributeBinding, context) {
 				var self = this;
 				
 				_(attributeBinding.listeners).each(
-					function(listener) {
-						this.bind(listener.field, _handleAttributeBindingFieldUpdated);
-						listener.handler = _handleAttributeBindingFieldUpdated;
+					function(binding) {
+						this.bind(binding.expression, _handleAttributeBindingFieldUpdated);
+						binding.value = this._getFieldValue(binding.expression, context);
+						binding.handler = _handleAttributeBindingFieldUpdated;
+						
+						
+						function _handleAttributeBindingFieldUpdated(value) {
+							binding.value = value;
+							var context = _(attributeBinding.listeners).reduce(
+								function(context, listener) {
+									context[listener.expression] = listener.value;
+									return context;
+								},
+								{}
+							);
+							self._updateAttributeBinding(attributeBinding, context);
+						}
 					},
 					this
 				);
 				
-				
-				function _handleAttributeBindingFieldUpdated() {
-					self._updateAttributeBinding(attributeBinding);
-				}
+				this._updateAttributeBinding(attributeBinding, context);
 			},
 			
 			_deactivateAttributeBinding: function(attributeBinding) {
 				_(attributeBinding.listeners).each(
-					function(listener) {
-						this.unbind(listener.field, listener.handler);
-						listener.handler = null;
+					function(binding) {
+						this.unbind(binding.expression, binding.handler);
+						binding.handler = null;
+						binding.value = null;
 					},
 					this
 				);
@@ -777,7 +782,7 @@ define(
 							
 							var bindingListener = null;
 							
-							if (bindingIgnoreFlag !== ":") { bindingListener = new ListenerVO(bindingExpression); }
+							if (bindingIgnoreFlag !== ":") { bindingListener = new BindingVO(bindingExpression); }
 							
 							classBindings.push(new ClassBindingVO(element, className, fullBindingExpression, bindingListener));
 						}
@@ -789,37 +794,39 @@ define(
 				return classBindings;
 			},
 			
-			_activateClassBindings: function() {
-				_(this._classBindings).each(function(classBinding) { this._activateClassBinding(classBinding); }, this);
+			_activateClassBindings: function(context) {
+				_(this._classBindings).each(function(classBinding) { this._activateClassBinding(classBinding, context); }, this);
 			},
 			
 			_deactivateClassBindings: function() {
 				_(this._classBindings).each(function(classBinding) { this._deactivateClassBinding(classBinding); }, this);
 			},
 			
-			_updateClassBindings: function(context) {
-				context = context || this.getRenderContext();
-				_(this._classBindings).each(function(classBinding) { this._updateClassBinding(classBinding, context); }, this);
-			},
-			
-			_activateClassBinding: function(classBinding) {
+			_activateClassBinding: function(classBinding, context) {
 				var self = this;
 				
 				if (classBinding.listener) {
-					this.bind(classBinding.listener.field, _handleClassBindingFieldUpdated);
+					this.bind(classBinding.listener.expression, _handleClassBindingFieldUpdated);
+					classBinding.listener.value = this._getFieldValue(classBinding.listener.expression, context);
 					classBinding.listener.handler = _handleClassBindingFieldUpdated;
 				}
 				
+				this._updateClassBinding(classBinding, context);
 				
-				function _handleClassBindingFieldUpdated() {
-					self._updateClassBinding(classBinding);
+				
+				function _handleClassBindingFieldUpdated(value) {
+					classBinding.listener.value = value;
+					var context = {};
+					context[classBinding.listener.expression] = classBinding.listener.value;
+					self._updateClassBinding(classBinding, context);
 				}
 			},
 			
 			_deactivateClassBinding: function(classBinding) {
 				if (classBinding.listener) {
-					this.unbind(classBinding.listener.field, classBinding.listener.handler);
+					this.unbind(classBinding.listener.expression, classBinding.listener.handler);
 					classBinding.listener.handler = null;
+					classBinding.listener.value = null;
 				}
 			},
 			
@@ -872,7 +879,7 @@ define(
 							
 							var bindingListener = null;
 							
-							if (bindingIgnoreFlag !== ":") { bindingListener = new ListenerVO(bindingExpression); }
+							if (bindingIgnoreFlag !== ":") { bindingListener = new BindingVO(bindingExpression); }
 							
 							styleBindings.push(new StyleBindingVO(element, styleName, fullBindingExpression, bindingListener));
 						}
@@ -884,38 +891,39 @@ define(
 				return styleBindings;
 			},
 			
-			_activateStyleBindings: function() {
-				_(this._styleBindings).each(function(styleBinding) { this._activateStyleBinding(styleBinding); }, this);
+			_activateStyleBindings: function(context) {
+				_(this._styleBindings).each(function(styleBinding) { this._activateStyleBinding(styleBinding, context); }, this);
 			},
 			
 			_deactivateStyleBindings: function() {
 				_(this._styleBindings).each(function(styleBinding) { this._deactivateStyleBinding(styleBinding); }, this);
 			},
 			
-			_updateStyleBindings: function(context) {
-				context = context || this.getRenderContext();
-				_(this._styleBindings).each(function(styleBinding) { this._updateStyleBinding(styleBinding, context); }, this);
-			},
-			
-			_activateStyleBinding: function(styleBinding) {
-				
+			_activateStyleBinding: function(styleBinding, context) {
 				var self = this;
 				
 				if (styleBinding.listener) {
-					this.bind(styleBinding.listener.field, _handleStyleBindingFieldUpdated);
+					this.bind(styleBinding.listener.expression, _handleStyleBindingFieldUpdated);
+					styleBinding.listener.value = this._getFieldValue(styleBinding.listener.expression, context);
 					styleBinding.listener.handler = _handleStyleBindingFieldUpdated;
 				}
 				
+				this._updateStyleBinding(styleBinding, context);
 				
-				function _handleStyleBindingFieldUpdated() {
-					self._updateStyleBinding(styleBinding);
+				
+				function _handleStyleBindingFieldUpdated(value) {
+					styleBinding.listener.value = value;
+					var context = {};
+					context[styleBinding.listener.expression] = styleBinding.listener.value;
+					self._updateStyleBinding(styleBinding, context);
 				}
 			},
 			
 			_deactivateStyleBinding: function(styleBinding) {
 				if (styleBinding.listener) {
-					this.unbind(styleBinding.listener.field, styleBinding.listener.handler);
+					this.unbind(styleBinding.listener.expression, styleBinding.listener.handler);
 					styleBinding.listener.handler = null;
+					styleBinding.listener.value = null;
 				}
 			},
 			
@@ -970,7 +978,7 @@ define(
 							
 						}
 						
-						var bindingListener = new ListenerVO(subviewField);
+						var bindingListener = new BindingVO(subviewField);
 						
 						return new SubviewBindingVO(element, subviewField, viewClass, subviewIdentifier, bindingListener);
 					},
@@ -982,8 +990,8 @@ define(
 				_(this._subviewBindings).each(function(subviewBinding) { this._activateSubviewBinding(subviewBinding); }, this);
 			},
 			
-			_updateSubviewBindings: function() {
-				_(this._subviewBindings).each(function(subviewBinding) { this._updateSubviewBinding(subviewBinding); }, this);
+			_deactivateSubviewBindings: function() {
+				_(this._subviewBindings).each(function(subviewBinding) { this._deactivateSubviewBinding(subviewBinding); }, this);
 			},
 			
 			_activateSubviewBinding: function(subviewBinding) {
@@ -991,9 +999,11 @@ define(
 				var self = this;
 				
 				if (subviewBinding.listener) {
-					this.bind(subviewBinding.listener.field, _handleSubviewModelFieldChanged);
+					this.bind(subviewBinding.listener.expression, _handleSubviewModelFieldChanged);
 					subviewBinding.listener.handler = _handleSubviewModelFieldChanged;
 				}
+				
+				this._updateSubviewBinding(subviewBinding);
 				
 				
 				function _handleSubviewModelFieldChanged() {
@@ -1005,8 +1015,8 @@ define(
 				// If there was an old subview, remove it
 				if (subviewBinding.subview) { this._removeSubview(subviewBinding); }
 				
-				// Get the subview model from the subview binding field
-				var subviewModel = this._getFieldValue(subviewBinding.field);
+				// Get the subview model from the subview binding expression
+				var subviewModel = this.get(subviewBinding.expression);
 				
 				// Create the new subview
 				var subview = this._createSubview(subviewBinding, subviewModel);
@@ -1016,18 +1026,11 @@ define(
 				if (subviewBinding.subview) { this._addSubview(subviewBinding); }
 			},
 			
-			_deactivateSubviewBindings: function() {
-				
-				_(this._subviewBindings).each(function(subviewBinding) { this._deactivateSubviewBinding(subviewBinding); }, this);
-				
-				this._subviewBindings = null;
-			},
-			
 			_deactivateSubviewBinding: function(subviewBinding) {
 				
 				if (subviewBinding.listener) {
 					
-					this.unbind(subviewBinding.listener.field, subviewBinding.listener.handler);
+					this.unbind(subviewBinding.listener.expression, subviewBinding.listener.handler);
 					subviewBinding.listener.handler = null;
 				}
 			},
@@ -1147,7 +1150,7 @@ define(
 							
 						}
 						
-						var bindingListener = new ListenerVO(repeaterField);
+						var bindingListener = new BindingVO(repeaterField);
 						
 						return new RepeaterBindingVO(element, repeaterField, viewClass, repeaterIdentifier, bindingListener);
 					},
@@ -1163,19 +1166,16 @@ define(
 				_(this._repeaterBindings).each(function(repeaterBinding) { this._deactivateRepeaterBinding(repeaterBinding); }, this);
 			},
 			
-			_updateRepeaterBindings: function() {
-				_(this._repeaterBindings).each(function(repeaterBinding) { this._updateRepeaterBinding(repeaterBinding); }, this);
-			},
-			
 			_activateRepeaterBinding: function(repeaterBinding) {
 				var self = this;
 				
-				this.bind(repeaterBinding.listener.field, _handleRepeaterBindingFieldUpdated);
+				this.bind(repeaterBinding.listener.expression, _handleRepeaterBindingFieldUpdated);
 				repeaterBinding.listener.handler = _handleRepeaterBindingFieldUpdated;
 				
 				repeaterBinding.subviewBindings.length = 0;
 				this.repeaters[repeaterBinding.identifier] = [];
 				
+				this._updateRepeaterBinding(repeaterBinding);
 				
 				function _handleRepeaterBindingFieldUpdated() {
 					self._updateRepeaterBinding(repeaterBinding);
@@ -1183,7 +1183,7 @@ define(
 			},
 			
 			_deactivateRepeaterBinding: function(repeaterBinding) {
-				this.unbind(repeaterBinding.listener.field, repeaterBinding.listener.handler);
+				this.unbind(repeaterBinding.listener.expression, repeaterBinding.listener.handler);
 				repeaterBinding.listener.handler = null;
 				
 				this._deactivateRepeaterBindingCollection(repeaterBinding);
@@ -1202,7 +1202,7 @@ define(
 			},
 			
 			_activateRepeaterBindingCollection: function(repeaterBinding) {
-				var repeaterCollection = this._getFieldValue(repeaterBinding.field);
+				var repeaterCollection = this.get(repeaterBinding.expression);
 				
 				if (repeaterCollection) {
 					var self = this;
@@ -1269,7 +1269,7 @@ define(
 			},
 			
 			_addRepeaterSubview: function(repeaterBinding, itemModel, index) {
-				var subviewBinding = new SubviewBindingVO(repeaterBinding.container, repeaterBinding.field + "[" + index + "]", repeaterBinding.subviewClass);
+				var subviewBinding = new SubviewBindingVO(repeaterBinding.container, repeaterBinding.expression + "[" + index + "]", repeaterBinding.subviewClass);
 				
 				subviewBinding.subview = this._createSubview(subviewBinding, itemModel);
 				
@@ -1515,19 +1515,19 @@ define(
 					
 					var existingBinding = _(this._bindings).find(
 						function(bindingListener) {
-							return (bindingListener.field === bindingExpression) && (bindingListener.handler === handler) && (!context || (bindingListener.context === context));
+							return (bindingListener.expression === bindingExpression) && (bindingListener.handler === handler) && (!context || (bindingListener.context === context));
 						}
 					);
 					
-					if (existingBinding) { return; }
+					if (existingBinding) { return this._bindingValues[bindingExpression]; }
 					
 					context = context || this;
 					
-					if (!(bindingExpression in this._bindingValues)) { this._bindingValues[bindingExpression] = this.get(bindingExpression); }
+					if (!(bindingExpression in this._bindingValues)) { this._bindingValues[bindingExpression] = null; }
 					
 					var value = this._bindingValues[bindingExpression];
 					
-					var bindingListener = new ListenerVO(bindingExpression, handler, context);
+					var bindingListener = new BindingVO(bindingExpression, handler, context);
 					
 					bindingListener.data = _createModelListener(this, bindingExpression);
 					
@@ -1662,7 +1662,7 @@ define(
 					
 					var matchingBindings = _(this._bindings).filter(
 						function(bindingListener) {
-							return (!bindingExpression || (bindingListener.field === bindingExpression)) && (!handler || (bindingListener.handler === handler)) && (!context || (bindingListener.context === context));
+							return (!bindingExpression || (bindingListener.expression === bindingExpression)) && (!handler || (bindingListener.handler === handler)) && (!context || (bindingListener.context === context));
 						}
 					);
 					
@@ -1673,9 +1673,9 @@ define(
 							this._bindings.splice(_(this._bindings.indexOf(bindingListener)), 1);
 							if (!_(this._bindings).find(
 								function(remainingListener) {
-									return remainingListener.field === bindingListener.field;
+									return remainingListener.expression === bindingListener.expression;
 								})
-							) { delete this._bindingValues[bindingListener.field]; }
+							) { delete this._bindingValues[bindingListener.expression]; }
 						},
 						this
 					);
@@ -1742,15 +1742,8 @@ define(
 			this.expression = expression;
 			this.handler = handler || null;
 			this.context = context || null;
-			this.value = value || null;
+			this.value = value;
 			this.childListeners = childListeners || [];
-		}
-		
-		function ListenerVO(field, handler, context, data) {
-			this.field = field;
-			this.handler = handler || null;
-			this.context = context || null;
-			this.data = data || null;
 		}
 		
 		function ModelListenerVO(model, event, handler, childListeners) {
@@ -1793,18 +1786,18 @@ define(
 			this.listener = listener || null;
 		}
 		
-		function SubviewBindingVO(container, field, subviewClass, identifier, listener) {
+		function SubviewBindingVO(container, expression, subviewClass, identifier, listener) {
 			this.container = container;
-			this.field = field;
+			this.expression = expression;
 			this.subviewClass = subviewClass || null;
 			this.identifier = identifier;
 			this.listener = listener || null;
 			this.subview = null;
 		}
 		
-		function RepeaterBindingVO(container, field, subviewClass, identifier, listener) {
+		function RepeaterBindingVO(container, expression, subviewClass, identifier, listener) {
 			this.container = container;
-			this.field = field;
+			this.expression = expression;
 			this.subviewClass = subviewClass;
 			this.identifier = identifier;
 			this.listener = listener || null;
