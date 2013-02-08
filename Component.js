@@ -905,9 +905,15 @@ define(
 					function(element) {
 						var $element = $(element);
 						
-						var subviewField = $element.attr("data-subview");
+						var subviewExpression = $element.attr("data-subview");
 						
 						element.removeAttribute("data-subview");
+						
+						var subviewExpressionMatch = /^\{(.+?)\}(?::(\w+))?$/.exec(subviewExpression);
+						if (!subviewExpressionMatch) { throw new Error("Invalid subview binding specified: \"" + subviewExpression + "\""); }
+						
+						var subviewField = subviewExpressionMatch[1];
+						var subviewIdentifier = subviewExpressionMatch[2] || subviewField;
 						
 						var viewClass = null;
 						
@@ -929,7 +935,7 @@ define(
 						
 						var bindingListener = new ListenerVO(subviewField);
 						
-						return new SubviewBindingVO(element, subviewField, viewClass, bindingListener);
+						return new SubviewBindingVO(element, subviewField, viewClass, subviewIdentifier, bindingListener);
 					},
 					this
 				);
@@ -1015,7 +1021,7 @@ define(
 				this.subviews.push(subview);
 				
 				// Add the subview to the hash of subviews
-				this.subviews[subviewBinding.field] = subview;
+				if (subviewBinding.identifier) { this.subviews[subviewBinding.identifier] = subview; }
 				
 				subview.parent = this;
 				
@@ -1061,7 +1067,7 @@ define(
 				this.subviews.splice(_(this.subviews).indexOf(subview), 1);
 				
 				// Remove the subview from the hash of subviews
-				this.subviews[subviewBinding.field] = null;
+				if (subviewBinding.identifier) { this.subviews[subviewBinding.identifier] = null; }
 				
 				// Update the subview binding
 				subviewBinding.subview = null;
@@ -1079,9 +1085,15 @@ define(
 					function(element) {
 						var $element = $(element);
 						
-						var repeaterField = $element.attr("data-source");
+						var repeaterExpression = $element.attr("data-source");
 						
 						element.removeAttribute("data-source");
+						
+						var repeaterExpressionMatch = /^\{(.+?)\}(?::(\w+))?$/.exec(subviewExpression);
+						if (!repeaterExpressionMatch) { throw new Error("Invalid repeater binding specified: \"" + repeaterExpression + "\""); }
+						
+						var repeaterField = repeaterExpressionMatch[1];
+						var repeaterIdentifier = repeaterExpressionMatch[2] || repeaterField;
 						
 						var viewClass = null;
 						
@@ -1092,7 +1104,7 @@ define(
 						if (viewClassID) {
 							
 							viewClass = Component.get(viewClassID);
-							if (!viewClass) { throw new Error("Invalid subview template specified: \"" + viewClassID + "\""); }
+							if (!viewClass) { throw new Error("Invalid repeater template specified: \"" + viewClassID + "\""); }
 							element.removeAttribute("data-template");
 							
 						} else if (viewClassTemplate) {
@@ -1103,7 +1115,7 @@ define(
 						
 						var bindingListener = new ListenerVO(repeaterField);
 						
-						return new RepeaterBindingVO(element, repeaterField, viewClass, bindingListener);
+						return new RepeaterBindingVO(element, repeaterField, viewClass, repeaterIdentifier, bindingListener);
 					},
 					this
 				);
@@ -1128,7 +1140,7 @@ define(
 				repeaterBinding.listener.handler = _handleRepeaterBindingFieldUpdated;
 				
 				repeaterBinding.subviewBindings.length = 0;
-				this.repeaters[repeaterBinding.field] = [];
+				this.repeaters[repeaterBinding.identifier] = [];
 				
 				
 				function _handleRepeaterBindingFieldUpdated() {
@@ -1143,11 +1155,12 @@ define(
 				this._deactivateRepeaterBindingCollection(repeaterBinding);
 				
 				repeaterBinding.subviewBindings.length = 0;
-				delete this.repeaters[repeaterBinding.field];
+				delete this.repeaters[repeaterBinding.identifier];
 			},
 			
 			_updateRepeaterBinding: function(repeaterBinding) {
-				for (var i = this.repeaters[repeaterBinding.field].length - 1; i >= 0; i--) { this._removeRepeaterSubview(repeaterBinding, i); }
+				var repeaterSubviews = this.repeaters[repeaterBinding.identifier];
+				for (var i = repeaterSubviews.length - 1; i >= 0; i--) { this._removeRepeaterSubview(repeaterBinding, i); }
 				this._deactivateRepeaterBindingCollection(repeaterBinding);
 				
 				this._activateRepeaterBindingCollection(repeaterBinding);
@@ -1218,13 +1231,16 @@ define(
 				repeaterBinding.resetListener = null;
 				
 				repeaterBinding.subviewBindings.length = 0;
-				this.repeaters[repeaterBinding.field].length = 0;
+				this.repeaters[repeaterBinding.identifier].length = 0;
 			},
 			
 			_addRepeaterSubview: function(repeaterBinding, itemModel, index) {
 				var subviewBinding = new SubviewBindingVO(repeaterBinding.container, repeaterBinding.field + "[" + index + "]", repeaterBinding.subviewClass);
 				
 				subviewBinding.subview = this._createSubview(subviewBinding, itemModel);
+				
+				repeaterBinding.subviewBindings.splice(index, 0, subviewBinding);
+				this.repeaters[repeaterBinding.identifier].splice(index, 0, subviewBinding.subview);
 				
 				// Determine the correct index at which to insert the DOM element
 				// (bearing in mind that some previous items in the repeater might have no subview specified)
@@ -1233,9 +1249,6 @@ define(
 				).length;
 				
 				this._addSubview(subviewBinding, elementIndex);
-				
-				repeaterBinding.subviewBindings.splice(index, 0, subviewBinding);
-				this.repeaters[repeaterBinding.field].splice(index, 0, subviewBinding.subview);
 			},
 			
 			_removeRepeaterSubview: function(repeaterBinding, index) {
@@ -1244,7 +1257,7 @@ define(
 				this._removeSubview(subviewBinding);
 				
 				repeaterBinding.subviewBindings.splice(index, 1);
-				this.repeaters[repeaterBinding.field].splice(index, 1);
+				this.repeaters[repeaterBinding.identifier].splice(index, 1);
 			},
 			
 			
@@ -1740,18 +1753,20 @@ define(
 			this.listener = listener || null;
 		}
 		
-		function SubviewBindingVO(container, field, subviewClass, listener) {
+		function SubviewBindingVO(container, field, subviewClass, identifier, listener) {
 			this.container = container;
 			this.field = field;
 			this.subviewClass = subviewClass || null;
+			this.identifier = identifier;
 			this.listener = listener || null;
 			this.subview = null;
 		}
 		
-		function RepeaterBindingVO(container, field, subviewClass, listener) {
+		function RepeaterBindingVO(container, field, subviewClass, identifier, listener) {
 			this.container = container;
 			this.field = field;
 			this.subviewClass = subviewClass;
+			this.identifier = identifier;
 			this.listener = listener || null;
 			this.collection = null;
 			this.subviewBindings = [];
