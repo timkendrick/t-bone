@@ -1089,7 +1089,7 @@ define(
 						
 						element.removeAttribute("data-source");
 						
-						var repeaterExpressionMatch = /^\{(.+?)\}(?::(\w+))?$/.exec(subviewExpression);
+						var repeaterExpressionMatch = /^\{(.+?)\}(?::(\w+))?$/.exec(repeaterExpression);
 						if (!repeaterExpressionMatch) { throw new Error("Invalid repeater binding specified: \"" + repeaterExpression + "\""); }
 						
 						var repeaterField = repeaterExpressionMatch[1];
