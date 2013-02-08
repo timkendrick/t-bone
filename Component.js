@@ -16,7 +16,6 @@ define(
 		var css = "";
 		
 		var cachedComponentModelJSON = null;
-		var pendingStyles = "";
 		
 		var booleanAttributes = [
 			"async",
