@@ -356,7 +356,7 @@ define(
 						var containsCollectionListener = (bindingExpression.indexOf("[]") !== -1);
 						
 						if (!containsCollectionListener) {
-							if (_(value).isUndefined()) { value = self.get(bindingExpression); }
+							if (_(value).isUndefined() || (bindingExpression !== rootField)) { value = self.get(bindingExpression); }
 							if (bindingListener.value === value) { return; }
 							bindingListener.value = value;
 						}
