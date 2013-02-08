@@ -84,15 +84,9 @@ define(
 				var active = this.active;
 				var added = (this.$el && (this.$el.parent().length > 0));
 				
-				// If the element has been added to the DOM, we'll need to remember where in the DOM to re-insert it, and remove it from the DOM
-				var $parent;
-				var $nextSibling;
-				if (added) {
-					$parent = this.$el.parent();
-					$nextSibling = this.$el.next();
-					
-					this.$el.remove();
-				}
+				// If the element has been added to the DOM, we'll need to remember where in the DOM to re-insert it
+				var $parent = (added ? this.$el.parent() : null);
+				var $nextSibling = (added ? this.$el.next() : null);
 				
 				// If the component has been rendered already, we'll need to reset its state using the `unload()` method (this will also deactivate it if necessary)
 				if (this._rendered) { this.unload(); }
@@ -272,9 +266,6 @@ define(
 				// Clear all the automatically-created model listeners
 				if (this._currentModel) { this._removeModelListeners(this._currentModel); }
 				
-				// Clear any manually-added binding listeners
-				this.unbind();
-				
 				// Reset the component state
 				this._currentModel = null;
 				
@@ -295,10 +286,24 @@ define(
 				this._repeaterBindings = null;
 				
 				// Remove the DOM element
+				this.$el.remove();
 				this.setElement(null);
 				
 				// Set an internal flag that indicates that this component is no longer rendered
 				this._rendered = false;
+				
+				return this;
+			},
+			
+			remove: function() {
+				// Unload the component
+				this.unload();
+				
+				// Remove the DOM element
+				Backbone.View.protoype.remove.call(this);
+				
+				// Clear any manually-added binding listeners
+				this.unbind();
 				
 				return this;
 			},
@@ -1056,13 +1061,10 @@ define(
 				// Deactivate the subview
 				if (this.active) { subview.deactivate(); }
 				
-				// Remove the subview from the container element
-				if(subview.el && (subview.el.parentNode === subviewBinding.container)) { subview.$el.remove(); }
+				// Destroy the subview
+				subview.remove();
 				
 				if (subview.parent === this) { subview.parent = null; }
-				
-				// Destroy the subview
-				subview.unload();
 				
 				// Remove the subview from the array of subviews
 				this.subviews.splice(_(this.subviews).indexOf(subview), 1);
