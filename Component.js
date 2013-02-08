@@ -1737,6 +1737,7 @@ define(
 		
 		return Component;
 		
+		
 		function BindingVO(expression, handler, context, value, childListeners) {
 			this.expression = expression;
 			this.handler = handler || null;
@@ -1744,6 +1745,7 @@ define(
 			this.value = value || null;
 			this.childListeners = childListeners || [];
 		}
+		
 		function ListenerVO(field, handler, context, data) {
 			this.field = field;
 			this.handler = handler || null;
