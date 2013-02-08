@@ -1452,21 +1452,23 @@ define(
 					return new (this.constructor)(values);
 				},
 				
-				getFieldValue: function(fieldExpression) {
-					var fieldNameComponents = fieldExpression.split(".");
+				get: function(expression) {
+					// If a simple field was specified, use the superclass implementation
+					if (this.attributes[expression] != null) { return Backbone.Model.prototype.get.call(this, expression); }
+					
+					var fieldNameComponents = expression.split(".");
 					var currentFieldNameComponent;
 					var currentObject = this;
 					
 					while (currentObject && (currentFieldNameComponent = fieldNameComponents.shift())) {
 						var arrayTest = /^(.+)\[(\d+)?\]$/.exec(currentFieldNameComponent);
+						var arrayIndex = -1;
 						if (arrayTest) {
 							currentFieldNameComponent = arrayTest[1];
-							var arrayIndex = (arrayTest[2] ? Number(arrayTest[2]) : -1);
-							var collection = (currentObject instanceof Backbone.Model ? currentObject.get(currentFieldNameComponent) : currentObject[currentFieldNameComponent]);
-							currentObject = (arrayIndex === -1 ? collection : (collection instanceof Backbone.Collection ? collection.at(arrayIndex) : collection[arrayIndex]));
-						} else {
-							currentObject = (currentObject instanceof Backbone.Model ? currentObject.get(currentFieldNameComponent) : currentObject[currentFieldNameComponent]);
+							if (arrayTest[2]) { arrayIndex = Number(arrayTest[2]); }
 						}
+						currentObject = (currentObject instanceof Backbone.Model ? (currentObject === this ? Backbone.Model.prototype.get.call(this, currentFieldNameComponent) : currentObject.get(currentFieldNameComponent)) : currentObject[currentFieldNameComponent]);
+						if (arrayIndex !== -1) { currentObject = (currentObject instanceof Backbone.Collection ? currentObject.at(arrayIndex) : currentObject[arrayIndex]); }
 					}
 					
 					if (_(currentObject).isUndefined()) { currentObject = null; }
@@ -1584,7 +1586,7 @@ define(
 							var handlerExpectsBindingValueAsParameter = (handler.length > 0);
 							
 							if (handlerExpectsBindingValueAsParameter) {
-								handler.call(context, self.getFieldValue(bindingExpression));
+								handler.call(context, self.get(bindingExpression));
 							} else {
 								handler.call(context);
 							}
@@ -1595,7 +1597,7 @@ define(
 						var handlerExpectsBindingValueAsParameter = (handler.length > 0);
 						
 						if (handlerExpectsBindingValueAsParameter) {
-							handler.call(context, self.getFieldValue(bindingExpression));
+							handler.call(context, self.get(bindingExpression));
 						} else {
 							handler.call(context);
 						}
