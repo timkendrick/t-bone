@@ -304,7 +304,7 @@ define(
 			},
 			
 			get: function(expression) {
-				return this._getFieldValue(expression, this.getRenderContext());
+				return this._getFieldValue(expression);
 			},
 			
 			bind: function(bindingExpression, handler, context) {
@@ -572,7 +572,7 @@ define(
 			},
 			
 			_updateDataBinding: function(dataBinding, context) {
-				context = context || this.getRenderContext();
+				context = context || null;
 				$(dataBinding.element).html(this._replacePlaceholders(dataBinding.expression, context));
 			},
 			
@@ -697,7 +697,7 @@ define(
 			},
 			
 			_updateAttributeBinding: function(attributeBinding, context) {
-				context = context || this.getRenderContext();
+				context = context || null;
 				
 				var attributeName = attributeBinding.attribute;
 				
@@ -788,7 +788,7 @@ define(
 			},
 			
 			_updateClassBinding: function(classBinding, context) {
-				context = context || this.getRenderContext();
+				context = context || null;
 				
 				var bindingExpression = classBinding.expression;
 				
@@ -884,7 +884,7 @@ define(
 			},
 			
 			_updateStyleBinding: function(styleBinding, context) {
-				context = context || this.getRenderContext();
+				context = context || null;
 				
 				var bindingExpression = styleBinding.expression;
 				
@@ -1340,7 +1340,7 @@ define(
 			},
 			
 			_replacePlaceholders: function(expression, context) {
-				context = context || this.getRenderContext();
+				context = context || null;
 				
 				// Search through any placeholders in the binding expression
 				var bindingPlaceholderSearch = /\{:?([%@!]?)(.*?)\}/g;
