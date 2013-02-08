@@ -63,6 +63,7 @@ define(
 			_rendered: false,
 			_currentModel: null,
 			
+			_bindings: null,
 			_bindingListeners: null,
 			_generators: null,
 			
@@ -97,7 +98,8 @@ define(
 				this._generators = this._createGenerators(this.generators);
 				
 				// Create an empty array to store any binding listeners
-				this._bindingListeners = [];
+				this._bindings = [];
+				this._bindingListeners = {};
 				
 				// Create the content element, and initialise any bindings etc.
 				var contentElement = _initElement();
@@ -268,6 +270,7 @@ define(
 				// Reset the component state
 				this._currentModel = null;
 				
+				this._bindings = null;
 				this._bindingListeners = null;
 				this._generators = null;
 				
@@ -312,9 +315,9 @@ define(
 			},
 			
 			bind: function(bindingExpression, handler, context) {
-				var existingBinding = _(this._bindingListeners).find(
+				var existingBinding = _(this._bindings).find(
 					function(bindingListener){
-						return (bindingListener.field === bindingExpression) && (bindingListener.handler === handler) && (!context || (bindingListener.context === context));
+						return (bindingListener.expression === bindingExpression) && (bindingListener.handler === handler) && (!context || (bindingListener.context === context));
 					}
 				);
 				
@@ -323,46 +326,61 @@ define(
 				context = context || this;
 				
 				var self = this;
-				_addBindingListener(bindingExpression, handler, context);
+				
+				var bindingListener = new BindingVO(bindingExpression, handler, context);
+				this._bindings.push(bindingListener);
+				
+				if (!(bindingExpression in this._bindingListeners)) {
+					this._bindingListeners[bindingExpression] = _createBindingListener(bindingExpression);
+				}
+				
+				this._bindingListeners[bindingExpression].childListeners.push(bindingListener);
 				
 				return this;
 				
 				
-				function _addBindingListener(bindingExpression, handler, context) {
+				function _createBindingListener(bindingExpression) {
 					
 					var rootField = /[^\.\[$]+/.exec(bindingExpression)[0];
 					var isGeneratedField = (rootField in self._generators);
 					
+					var value = null;
 					if (isGeneratedField) {
 						
-						self.on("change:" + rootField, _handleBindingValueChanged, context);
+						value = self.get(bindingExpression);
+						self.on("change:" + rootField, _handleBindingValueChanged);
 						
 					} else {
 						
-						if (self._currentModel) { self._currentModel.bind(bindingExpression, _handleBindingValueChanged, context); }
+						if (self._currentModel) { value = self._currentModel.bind(bindingExpression, _handleBindingValueChanged); }
 						
 					}
 					
-					self._bindingListeners.push(new ListenerVO(bindingExpression, handler, context, _handleBindingValueChanged));
+					var bindingListener = new BindingVO(bindingExpression, _handleBindingValueChanged, null, value);
+					
+					return bindingListener;
 					
 					
-					function _handleBindingValueChanged() {
-						var handlerExpectsBindingValueAsParameter = (handler.length > 0);
+					function _handleBindingValueChanged(value) {
+						var containsCollectionListener = (bindingExpression.indexOf("[]") !== -1);
 						
-						if (handlerExpectsBindingValueAsParameter) {
-							handler.call(context, self.get(bindingExpression));
-						} else {
-							handler.call(context);
+						if (!containsCollectionListener) {
+							if (_(value).isUndefined()) { value = self.get(bindingExpression); }
+							if (bindingListener.value === value) { return; }
+							bindingListener.value = value;
 						}
+						_(bindingListener.childListeners).each(function(childListener) {
+							childListener.handler.call(childListener.context, value);
+						});
 					}
 				}
 			},
 			
 			unbind: function(bindingExpression, handler, context) {
 				
-				var matchingBindings = _(this._bindingListeners).filter(
+				var matchingBindings = _(this._bindings).filter(
 					function(bindingListener) {
-						return (!bindingExpression || (bindingListener.field === bindingExpression)) && (!handler || (bindingListener.handler === handler)) && (!context || (bindingListener.context === context));
+						return (!bindingExpression || (bindingListener.expression === bindingExpression)) && (!handler || (bindingListener.handler === handler)) && (!context || (bindingListener.context === context));
 					}
 				);
 				
@@ -372,22 +390,30 @@ define(
 				return this;
 				
 				
-				function _removeBindingListener(bindingListener) {
+				function _removeBindingListener(binding) {
 					
-					var rootField = /[^\.\[$]+/.exec(bindingListener.field)[0];
+					var rootField = /[^\.\[$]+/.exec(binding.expression)[0];
 					var isGeneratedField = (rootField in self._generators);
+					
+					var bindingListener = self._bindingListeners[binding.expression];
 					
 					if (isGeneratedField) {
 						
-						self.off("change:" + rootField, bindingListener.data, bindingListener.context);
+						self.off("change:" + rootField, bindingListener.handler);
 						
 					} else {
 						
-						if (self._currentModel) { self._currentModel.unbind(bindingListener.field, bindingListener.data, bindingListener.context); }
+						if (self._currentModel) { self._currentModel.unbind(bindingListener.expression, bindingListener.handler); }
 						
 					}
 					
-					self._bindingListeners.splice(self._bindingListeners.indexOf(bindingListener), 1);
+					self._bindings.splice(self._bindings.indexOf(bindingListener), 1);
+					
+					if (bindingListener.childListeners.length > 1) {
+						bindingListener.childListeners.splice(_(bindingListener.childListeners).indexOf(bindingListener), 1);
+					} else {
+						delete self._bindingListeners[bindingListener.expression];
+					}
 				}
 			},
 			
@@ -435,16 +461,19 @@ define(
 						
 						
 						function _handleGeneratorFieldChanged() {
-							self.trigger("change:" + generatorName, generator.generator.call(self));
+							self.trigger("change:" + generatorName, generator.generator.call(this));
 						}
 					}
 				);
 				
 				_(this._bindingListeners).each(
-					function(bindingListener) {
-						var rootField = /[^\.\[$]+/.exec(bindingListener.field)[0];
+					function(bindingListener, bindingExpression) {
+						var rootField = /[^\.\[$]+/.exec(bindingExpression)[0];
 						var isGeneratedField = (rootField in this._generators);
-						if (!isGeneratedField) { model.bind(bindingListener.field, bindingListener.data, bindingListener.context); }
+						if (!isGeneratedField) {
+							var value = model.bind(bindingExpression, bindingListener.handler);
+							bindingListener.value = value;
+						}
 					},
 					this
 				);
@@ -466,10 +495,13 @@ define(
 				);
 				
 				_(this._bindingListeners).each(
-					function(bindingListener) {
-						var rootField = /[^\.\[$]+/.exec(bindingListener.field)[0];
+					function(bindingListener, bindingExpression) {
+						var rootField = /[^\.\[$]+/.exec(bindingExpression)[0];
 						var isGeneratedField = (rootField in this._generators);
-						if (!isGeneratedField) { model.unbind(bindingListener.field, bindingListener.data, bindingListener.context); }
+						if (!isGeneratedField) {
+							model.unbind(bindingExpression, bindingListener.handler);
+							bindingListener.value = null;
+						}
 					},
 					this
 				);
@@ -1408,10 +1440,12 @@ define(
 			Model: Backbone.Model.extend({
 				
 				
-				_bindingListeners: null,
+				_bindings: null,
+				_bindingValues: null,
 				
 				initialize: function() {
-					this._bindingListeners = [];
+					this._bindings = [];
+					this._bindingValues = {};
 				},
 				
 				toJSON: function() {
@@ -1479,7 +1513,7 @@ define(
 				
 				bind: function(bindingExpression, handler, context) {
 					
-					var existingBinding = _(this._bindingListeners).find(
+					var existingBinding = _(this._bindings).find(
 						function(bindingListener) {
 							return (bindingListener.field === bindingExpression) && (bindingListener.handler === handler) && (!context || (bindingListener.context === context));
 						}
@@ -1489,13 +1523,19 @@ define(
 					
 					context = context || this;
 					
+					if (!(bindingExpression in this._bindingValues)) { this._bindingValues[bindingExpression] = this.get(bindingExpression); }
+					
+					var value = this._bindingValues[bindingExpression];
+					
 					var bindingListener = new ListenerVO(bindingExpression, handler, context);
 					
 					bindingListener.data = _createModelListener(this, bindingExpression);
 					
-					this._bindingListeners.push(bindingListener);
+					this._bindings.push(bindingListener);
 					
 					var self = this;
+					
+					return value;
 					
 					
 					function _createModelListener(model, fieldExpression) {
@@ -1584,24 +1624,23 @@ define(
 									collectionListeners.push(childChangeListener);
 								}
 							}
-							var handlerExpectsBindingValueAsParameter = (handler.length > 0);
 							
-							if (handlerExpectsBindingValueAsParameter) {
-								handler.call(context, self.get(bindingExpression));
-							} else {
-								handler.call(context);
-							}
+							_handleBindingValueChanged();
 						}
 					}
 					
 					function _handleBindingValueChanged() {
-						var handlerExpectsBindingValueAsParameter = (handler.length > 0);
+						var containsCollectionListener = (bindingExpression.indexOf("[]") !== -1);
 						
-						if (handlerExpectsBindingValueAsParameter) {
-							handler.call(context, self.get(bindingExpression));
-						} else {
-							handler.call(context);
+						var value = null;
+						
+						if (!containsCollectionListener) {
+							value = self.get(bindingExpression);
+							if (self._bindingValues[bindingExpression] === value) { return; }
+							self._bindingValues[bindingExpression] = value;
 						}
+						
+						handler.call(context, value);
 					}
 				},
 				
@@ -1609,18 +1648,19 @@ define(
 					
 					if (!bindingExpression && !handler && !context) {
 						
-						_(this._bindingListeners).each(
+						_(this._bindings).each(
 							function(bindingListener) {
 								_deactivateModelListener(bindingListener.data);
 							}
 						);
 						
-						this._bindingListeners.length = 0;
+						this._bindings.length = 0;
+						this._bindingValues = {};
 						
 						return this;
 					}
 					
-					var matchingBindings = _(this._bindingListeners).filter(
+					var matchingBindings = _(this._bindings).filter(
 						function(bindingListener) {
 							return (!bindingExpression || (bindingListener.field === bindingExpression)) && (!handler || (bindingListener.handler === handler)) && (!context || (bindingListener.context === context));
 						}
@@ -1630,7 +1670,12 @@ define(
 						function(bindingListener) {
 							_deactivateModelListener(bindingListener.data);
 							
-							this._bindingListeners.splice(_(this._bindingListeners.indexOf(bindingListener)), 1);
+							this._bindings.splice(_(this._bindings.indexOf(bindingListener)), 1);
+							if (!_(this._bindings).find(
+								function(remainingListener) {
+									return remainingListener.field === bindingListener.field;
+								})
+							) { delete this._bindingValues[bindingListener.field]; }
 						},
 						this
 					);
@@ -1692,7 +1737,13 @@ define(
 		
 		return Component;
 		
-		
+		function BindingVO(expression, handler, context, value, childListeners) {
+			this.expression = expression;
+			this.handler = handler || null;
+			this.context = context || null;
+			this.value = value || null;
+			this.childListeners = childListeners || [];
+		}
 		function ListenerVO(field, handler, context, data) {
 			this.field = field;
 			this.handler = handler || null;
