@@ -79,6 +79,9 @@ define(
 				// Retain a reference to the current scope for use in nested functions
 				var self = this;
 				
+				// Ensure that the component's model extends the Component.Model base class
+				if (this.model && !(this.model instanceof Component.Model)) { throw new Error("Component model must extend the Component.Model class"); }
+				
 				// If we're re-rendering the component, it could have been activated and added to the DOM
 				// Seeing as we'll need to deactivate the component and remove the old element during the rendering process, we'll need to keep track of its former state
 				var active = this.active;
