@@ -24,6 +24,7 @@ T-Bone was created to cut out the boring repetitive parts so you can spend your 
 
 * The project is split into reusable, modular components wherever possible
 * These components use HTML templates to dictate their appearance, allowing for rapid templating and development
+* Component CSS is dynamically injected into the page when the component is loaded, allowing for dependency-managed CSS
 * Enhanced syntax in HTML templates automatically hooks up data bindings and subviews, keeping logic outside the HTML
 * Bindings and subviews are auto-managed behind the scenes, cutting out boilerplate and producing more robust code
 * All the components are Backbone.js views, ensuring an easy transition for anybody familiar with the Backbone framework
