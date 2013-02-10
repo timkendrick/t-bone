@@ -1700,10 +1700,6 @@ define(
 			
 			Collection: Backbone.Collection.extend({
 				
-				toJSON: function() {
-					return this.map(function(model) { return model.toJSON(); });
-				},
-				
 				clone: function() {
 					var values = this.map(function(model) { return (model instanceof Backbone.Model ? model.clone() : model); });
 					return new (this.constructor)(values);
