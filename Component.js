@@ -1727,9 +1727,9 @@ define(
 					if (document.createStyleSheet) {
 						var stylesheet = document.createStyleSheet();
 						stylesheet.cssText = css;
-					} else {
-						$("head").append('<style type=\"text/css\" data-tbone="true">' + css + '</style>');
 					}
+					$("style [data-tbone=true]").remove();
+					$("head").append('<style type=\"text/css\" data-tbone="true">' + css + '</style>');
 				}
 			}
 		});
