@@ -1724,7 +1724,7 @@ define(
 				
 				
 				function _injectStyleSheet(css) {
-					if (document.createStyleSheet) {
+					if ((typeof window !== "undefined") && (typeof document !== "undefined") && document.createStyleSheet) {
 						var stylesheet = document.createStyleSheet();
 						stylesheet.cssText = css;
 					}
