@@ -1,16 +1,20 @@
 define(
 	[
+		"module",
 		"underscore",
 		"jquery",
 		"backbone"
 	],
 	
 	function(
+		module,
 		_,
 		$,
 		Backbone
 	) {
 		"use strict";
+		
+		var keepMetadata = module.config().metadata;
 		
 		var components = {};
 		var css = "";
@@ -157,12 +161,12 @@ define(
 					
 					
 					function _parseBindings(contentElement) {
-						self._repeaterBindings = (contentElement ? self._getRepeaterBindings(contentElement) : []);
-						self._subviewBindings = (contentElement ? self._getSubviewBindings(contentElement) : []);
-						self._dataBindings = (contentElement ? self._getDataBindings(contentElement) : []);
-						self._attributeBindings = (contentElement ? self._getAttributeBindings(contentElement) : []);
-						self._classBindings = (contentElement ? self._getClassBindings(contentElement) : []);
-						self._styleBindings = (contentElement ? self._getStyleBindings(contentElement) : []);
+						self._repeaterBindings = (contentElement ? self._getRepeaterBindings(contentElement, keepMetadata) : []);
+						self._subviewBindings = (contentElement ? self._getSubviewBindings(contentElement, keepMetadata) : []);
+						self._dataBindings = (contentElement ? self._getDataBindings(contentElement, keepMetadata) : []);
+						self._attributeBindings = (contentElement ? self._getAttributeBindings(contentElement, keepMetadata) : []);
+						self._classBindings = (contentElement ? self._getClassBindings(contentElement, keepMetadata) : []);
+						self._styleBindings = (contentElement ? self._getStyleBindings(contentElement, keepMetadata) : []);
 					}
 					
 					function _activateBindings(context) {
@@ -505,51 +509,67 @@ define(
 				this._updateComponentStyle(value);
 			},
 			
-			_getDataBindings: function(parentElement) {
-				return _getElementDataBindings(parentElement);
+			_getDataBindings: function(parentElement, keepMetadata) {
+				return _getElementDataBindings(parentElement, keepMetadata);
 				
 				
-				function _getElementDataBindings(element, dataBindings) {
+				function _getElementDataBindings(element, keepMetadata, dataBindings) {
 					dataBindings = dataBindings || [];
+					
+					
+					// Convert inline data bindings to `data-value` attributes
+					if (!element.hasAttribute("data-value")) {
+						var testPattern = /\{(:?)[%@!]?(.*?)\}/;
+						var testElement = element.firstChild;
+						while (testElement) {
+							// Look for text nodes with data bindings
+							if ((testElement.nodeType === 3) && testPattern.test(testElement.nodeValue)) {
+								
+								// Set the `data-value` attribute
+								element.setAttribute("data-value", testElement.nodeValue);
+								
+								// Skip any other nodes, seeing as they would be wiped anyway when the binding is updated
+								break;
+							}
+							
+							testElement = testElement.nextSibling;
+						}
+					}
+					
+					// Check for a `data-value` attribute to use for the binding expression
+					if (element.hasAttribute("data-value")) {
+						var attributeValue = element.getAttribute("data-value");
+						
+						// Search for binding values
+						var bindingListeners = null;
+						var bindingPattern = /\{(:?)[%@!]?(.*?)\}/g
+						var result;
+						while ((result = bindingPattern.exec(attributeValue))) {
+							
+							var bindingIgnoreFlag = result[1];
+							var bindingField = result[2];
+							
+							bindingListeners = bindingListeners || [];
+							
+							if (bindingIgnoreFlag !== ":") { bindingListeners.push(new BindingVO(bindingField)); }
+						}
+						
+						if (bindingListeners) { dataBindings.push(new DataBindingVO(element, attributeValue, bindingListeners)); }
+						
+						// Now that the binding has been stored, the attribute can be removed for a cleaner DOM
+						if (!keepMetadata) { element.removeAttribute("data-value"); }
+					}
 					
 					// Search the element's child nodes for potential data bindings
 					var currentChild = element.firstChild;
 					while (currentChild) {
 						
+						// Retain the next sibling element, in case the DOM changes
 						var nextSibling = currentChild.nextSibling;
-						switch (currentChild.nodeType) {
-							
-							case 3: // Text node
-								
-								var bindingExpression = currentChild.nodeValue;
-								
-								// Skip text nodes that don't contain bindings
-								if (bindingExpression.indexOf("{") === -1) { break; }
-								
-								// Search for binding values
-								var bindingListeners = null;
-								var bindingPattern = /\{(:?)[%@!]?(.*?)\}/g;
-								var result;
-								while ((result = bindingPattern.exec(bindingExpression))) {
-									
-									var bindingIgnoreFlag = result[1];
-									var bindingField = result[2];
-									
-									bindingListeners = bindingListeners || [];
-									
-									if (bindingIgnoreFlag !== ":") { bindingListeners.push(new BindingVO(bindingField)); }
-								}
-								
-								if (bindingListeners) { dataBindings.push(new DataBindingVO(element, bindingExpression, bindingListeners)); }
-								
-								break;
-							
-							case 1: // Element node
-								
-								// Search for bindings within the child element
-								dataBindings = _getElementDataBindings(currentChild, dataBindings);
-								
-								break;
+						
+						// Search for bindings within the child element
+						if (currentChild.nodeType === 1) {	
+							dataBindings = _getElementDataBindings(currentChild, keepMetadata, dataBindings);
 						}
 						
 						// Try the next child node
@@ -614,12 +634,12 @@ define(
 			
 			
 			
-			_getAttributeBindings: function(parentElement) {
+			_getAttributeBindings: function(parentElement, keepMetadata) {
 				
-				return _getElementAttributeBindings(parentElement);
+				return _getElementAttributeBindings(parentElement, keepMetadata);
 				
 				
-				function _getElementAttributeBindings(element, attributeBindings) {
+				function _getElementAttributeBindings(element, keepMetadata, attributeBindings) {
 					attributeBindings = attributeBindings || [];
 					
 					// Unfortunately we have to loop through all the element's attributes, so for performance reasons we're avoiding jQuery and lodash
@@ -627,16 +647,15 @@ define(
 						
 						var attribute = element.attributes[i];
 						var attributeName = attribute.name;
-						var bindingExpression = attribute.value;
+						var attributeValue = attribute.value;
 						
 						// Skip attributes that don't contain bindings
-						if (bindingExpression.indexOf("{") === -1) { continue; }
+						if (attributeValue.indexOf("{") === -1) { continue; }
 						
-						// Normalise the attribute
+						// Skip the predefined attributes, as they have their behaviour determined later on
 						switch (attributeName) {
-							
-							// Skip the following attributes, as they have their behaviour determined later on
 							case "data-id":
+							case "data-value":
 							case "data-class":
 							case "data-style":
 							case "data-subview":
@@ -645,26 +664,24 @@ define(
 								continue;
 						}
 						
-						_(unsafeAttributes).each(function(unsafeAttribute) {
-							if (attributeName !== ("data-attribute-" + unsafeAttribute)) { return; }
+						// Sanitise the attribute name
+						if (attributeName.indexOf("data-attribute-") !== 0) {
 							
-							// Correct the attribute name
-							attributeName = attributeName.substr("data-attribute-".length);
+							// Convert the attribute name to `data-attribute-xxx` form
+							element.setAttribute("data-attribute-" + attributeName, attributeValue);
 							
-							// Remove the attribute, seeing as it will be applied under a different name
-							element.removeAttributeNode(attribute);
-							
-							// Update the current index to reflect the fact that the attribute has been removed
-							i--;
-							
-							return false;
-						});
+							// Skip this attribute, as the newly-added attribute will itself be handled
+							continue;
+						}
+						
+						// Get the actual attribute name
+						attributeName = attributeName.substr("data-attribute-".length);
 						
 						// Search for binding values
 						var bindingListeners = null;
 						var bindingPattern = /\{(:?)[%@!]?(.+?)\}/g;
 						var result;
-						while ((result = bindingPattern.exec(bindingExpression))) {
+						while ((result = bindingPattern.exec(attributeValue))) {
 							
 							var bindingIgnoreFlag = result[1];
 							var bindingField = result[2];
@@ -674,15 +691,22 @@ define(
 							if (bindingIgnoreFlag !== ":") { bindingListeners.push(new BindingVO(bindingField)); }
 						}
 						
-						if (bindingListeners) { attributeBindings.push(new AttributeBindingVO(element, attributeName, bindingExpression, bindingListeners)); }
+						if (bindingListeners) { attributeBindings.push(new AttributeBindingVO(element, attributeName, attributeValue, bindingListeners)); }
 						
+						// Now that the binding has been stored, the attribute can be removed for a cleaner DOM
+						if (!keepMetadata) {
+							element.removeAttributeNode(attribute);
+							
+							// Update the current index to reflect the fact that the attribute has been removed
+							i--;
+						}
 					}
 					
 					// Search the element's children for data bindings
 					var currentChild = element.firstChild;
 					while (currentChild) {
 						var nextSibling = currentChild.nextSibling;
-						if (currentChild.nodeType === 1) { _getElementAttributeBindings(currentChild, attributeBindings); }
+						if (currentChild.nodeType === 1) { _getElementAttributeBindings(currentChild, keepMetadata, attributeBindings); }
 						currentChild = nextSibling;
 					}
 					
@@ -755,7 +779,7 @@ define(
 			
 			
 			
-			_getClassBindings: function(parentElement) {
+			_getClassBindings: function(parentElement, keepMetadata) {
 				var $namedElements = this._getDataElements(parentElement, "data-class");
 				
 				var classBindings = [];
@@ -766,8 +790,6 @@ define(
 						var $element = $(element);
 						
 						var combinedBindingExpression = $element.attr("data-class");
-						
-						element.removeAttribute("data-class");
 						
 						var pattern = /(?:([_a-zA-Z0-9_\-]+):)?\{(:?)([!]?(.+?))\}/g;
 						
@@ -788,6 +810,9 @@ define(
 							
 							classBindings.push(new ClassBindingVO(element, className, fullBindingExpression, bindingListener));
 						}
+						
+						// Now that the binding has been stored, the attribute can be removed for a cleaner DOM
+						if (!keepMetadata) { element.removeAttribute("data-class"); }
 						
 						return classBindings;
 					}
@@ -853,7 +878,7 @@ define(
 			},
 			
 			
-			_getStyleBindings: function(parentElement) {
+			_getStyleBindings: function(parentElement, keepMetadata) {
 				var $namedElements = this._getDataElements(parentElement, "data-style");
 				
 				var styleBindings = [];
@@ -864,8 +889,6 @@ define(
 						var $element = $(element);
 						
 						var combinedBindingExpression = $element.attr("data-style");
-						
-						element.removeAttribute("data-style");
 						
 						var pattern = /([_a-zA-Z0-9_\-]+):\s*\{(:?)([!]?(.+?))\};?/g;
 						
@@ -885,6 +908,9 @@ define(
 							
 							styleBindings.push(new StyleBindingVO(element, styleName, fullBindingExpression, bindingListener));
 						}
+						
+						// Now that the binding has been stored, the attribute can be removed for a cleaner DOM
+						if (!keepMetadata) { element.removeAttribute("data-style"); }
 						
 						return styleBindings;
 					}
@@ -944,7 +970,7 @@ define(
 			
 			
 			
-			_getSubviewBindings: function(parentElement) {
+			_getSubviewBindings: function(parentElement, keepMetadata) {
 				
 				var $subviewContainers = this._getDataElements(parentElement, "data-subview");
 					
@@ -953,8 +979,6 @@ define(
 						var $element = $(element);
 						
 						var subviewExpression = $element.attr("data-subview");
-						
-						element.removeAttribute("data-subview");
 						
 						var subviewExpressionMatch = /^\{(.+?)\}(?::(\w+))?$/.exec(subviewExpression);
 						if (!subviewExpressionMatch) { throw new Error("Invalid subview binding specified: \"" + subviewExpression + "\""); }
@@ -981,6 +1005,9 @@ define(
 						}
 						
 						var bindingListener = new BindingVO(subviewField);
+						
+						// Now that the binding has been stored, the attribute can be removed for a cleaner DOM
+						if (!keepMetadata) { element.removeAttribute("data-subview"); }
 						
 						return new SubviewBindingVO(element, subviewField, viewClass, subviewIdentifier, bindingListener);
 					},
@@ -1116,7 +1143,7 @@ define(
 			
 			
 			
-			_getRepeaterBindings: function(parentElement) {
+			_getRepeaterBindings: function(parentElement, keepMetadata) {
 				
 				var $repeaterTemplates = this._getDataElements(parentElement, "data-source");
 				
@@ -1125,8 +1152,6 @@ define(
 						var $element = $(element);
 						
 						var repeaterExpression = $element.attr("data-source");
-						
-						element.removeAttribute("data-source");
 						
 						var repeaterExpressionMatch = /^\{(.+?)\}(?::(\w+))?$/.exec(repeaterExpression);
 						if (!repeaterExpressionMatch) { throw new Error("Invalid repeater binding specified: \"" + repeaterExpression + "\""); }
@@ -1153,6 +1178,9 @@ define(
 						}
 						
 						var bindingListener = new BindingVO(repeaterField);
+						
+						// Now that the binding has been stored, the attribute can be removed for a cleaner DOM
+						if (!keepMetadata) { element.removeAttribute("data-source"); }
 						
 						return new RepeaterBindingVO(element, repeaterField, viewClass, repeaterIdentifier, bindingListener);
 					},
