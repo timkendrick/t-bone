@@ -125,7 +125,7 @@ define(
 				}
 				
 				// Add model listeners for bindings, etc.
-				if (this._currentModel) { this._addModelListeners(this._currentModel); }
+				if (this._currentModel) { this.delegateModel(this._currentModel); }
 				
 				// Set an internal flag that indicates that this component has now been rendered
 				this._rendered = true;
@@ -262,7 +262,7 @@ define(
 				if (this._styleBindings) { this._deactivateStyleBindings(); }
 				
 				// Clear all the automatically-created model listeners
-				if (this._currentModel) { this._removeModelListeners(this._currentModel); }
+				if (this._currentModel) { this.undelegateModel(this._currentModel); }
 				
 				// Reset the component state
 				this._currentModel = null;
@@ -411,36 +411,7 @@ define(
 				}
 			},
 			
-			
-			_createGenerators: function(generatorsDictionary) {
-				var generators = {};
-				
-				_(generatorsDictionary).each(
-					function(generatorFunction, generatorDefinition) {
-						
-						var result = /^(\w+)(?: \{(.+?)\})?$/.exec(generatorDefinition);
-						if (!result) { throw new Error("Invalid generator definition: " + generatorDefinition); }
-						
-						var generatorName = result[1];
-						var generatorListenerExpressions = (result[2] && result[2].split(",")) || [];
-						
-						var generatorListeners = [];
-						
-						_(generatorListenerExpressions).each(
-							function(generatorListenerExpression) {
-								generatorListeners.push(new BindingVO(generatorListenerExpression));
-							},
-							this
-						);
-						
-						generators[generatorName] = new GeneratorVO(generatorFunction, generatorListeners);
-					},
-					this
-				);
-				return generators;
-			},
-			
-			_addModelListeners: function(model) {
+			delegateModel: function(model) {
 				model.on("change:style", this._handleModelStyleChanged, this);
 				
 				var self = this;
@@ -473,7 +444,7 @@ define(
 				);
 			},
 			
-			_removeModelListeners: function(model) {
+			undelegateModel: function(model) {
 				model.off("change:style", this._handleModelStyleChanged, this);
 				
 				var self = this;
@@ -501,10 +472,38 @@ define(
 				);
 			},
 			
+			
+			_createGenerators: function(generatorsDictionary) {
+				var generators = {};
+				
+				_(generatorsDictionary).each(
+					function(generatorFunction, generatorDefinition) {
+						
+						var result = /^(\w+)(?: \{(.+?)\})?$/.exec(generatorDefinition);
+						if (!result) { throw new Error("Invalid generator definition: " + generatorDefinition); }
+						
+						var generatorName = result[1];
+						var generatorListenerExpressions = (result[2] && result[2].split(",")) || [];
+						
+						var generatorListeners = [];
+						
+						_(generatorListenerExpressions).each(
+							function(generatorListenerExpression) {
+								generatorListeners.push(new BindingVO(generatorListenerExpression));
+							},
+							this
+						);
+						
+						generators[generatorName] = new GeneratorVO(generatorFunction, generatorListeners);
+					},
+					this
+				);
+				return generators;
+			},
+			
 			_handleModelStyleChanged: function(model, value) {
 				this._updateComponentStyle(value);
 			},
-			
 			
 			_getDataBindings: function(parentElement) {
 				return _getElementDataBindings(parentElement);
