@@ -996,7 +996,7 @@ define(
 							
 							viewClass = Component.get(viewClassID);
 							if (!viewClass) { throw new Error("Invalid subview template specified: \"" + viewClassID + "\""); }
-							element.removeAttribute("data-template");
+							if (!keepMetadata) { element.removeAttribute("data-template"); }
 							
 						} else if (viewClassTemplate) {
 							
