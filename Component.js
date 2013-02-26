@@ -188,7 +188,7 @@ define(
 				// This method can also be overridden to manipulate the DOM element before it is parsed for bindings
 				
 				// The template can be specified either as a string of HTML, or a function that returns a string of HTML
-				var template = (_(this.template).isFunction() ? this.template() : this.template);
+				var template = (_(this.template).isFunction() ? this.template() : this.template).trim();
 				
 				if (!template) { return null; }
 				
@@ -199,7 +199,7 @@ define(
 				html = this._sanitiseHTMLAttributes(html);
 				
 				// Create a DOM element from the HTML string
-				var element = $(html)[0];
+				var element = ($.parseHTML || $)(html)[0];
 				
 				return element;
 			},
@@ -989,7 +989,7 @@ define(
 						var viewClass = null;
 						
 						var viewClassID = $element.attr("data-template") || null;
-						var viewClassTemplate = $element.html();
+						var viewClassTemplate = $element.html().trim();
 						$element.empty();
 						
 						if (viewClassID) {
@@ -1162,7 +1162,7 @@ define(
 						var viewClass = null;
 						
 						var viewClassID = $element.attr("data-template") || null;
-						var viewClassTemplate = $element.html();
+						var viewClassTemplate = $element.html().trim();
 						$element.empty();
 						
 						if (viewClassID) {
