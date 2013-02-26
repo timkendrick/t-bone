@@ -1395,7 +1395,7 @@ define(
 			
 			_sanitiseHTMLAttributes: function(html) {
 				_(unsafeAttributes).each(function(attributeName) {
-					var search = new RegExp('(' + attributeName + '="[^"]*\\{.*?")', "g");
+					var search = new RegExp('\\s+(' + attributeName + '="[^"]*\\{.*?")', "g");
 					html = html.replace(search, " data-attribute-$1");
 				});
 				
