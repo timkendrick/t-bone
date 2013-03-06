@@ -867,8 +867,11 @@ define(
 				
 				var bindingValue = this._getFieldValue(bindingExpression, context);
 				
-				if (inverse) { bindingValue = !bindingValue; }
+				if ((bindingValue instanceof Array) || (bindingValue instanceof Backbone.Collection)) {
+					bindingValue = (bindingValue.length > 0);
+				}
 				
+				if (inverse) { bindingValue = !bindingValue; }
 				
 				if (classBinding.value) { $(classBinding.element).removeClass(classBinding.value); }
 				
