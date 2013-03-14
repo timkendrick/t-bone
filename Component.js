@@ -1370,6 +1370,8 @@ define(
 			},
 			
 			_getFieldValue: function(expression, context) {
+				if (context && (expression in context) && !(context instanceof Backbone.Model)) { return context[expression]; }
+				
 				var fieldNameComponents = expression.split(".");
 				var currentFieldNameComponent;
 				var currentObject = context;
