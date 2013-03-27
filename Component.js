@@ -1077,7 +1077,7 @@ define(
 					viewClass = Component.get(componentID);
 					if (!viewClass) { throw new Error("Invalid subview template specified: \"" +  componentID + "\""); }
 					
-				} else if (subviewBinding.subviewClass) {
+				} else if (subviewModel && subviewBinding.subviewClass) {
 					
 					viewClass = subviewBinding.subviewClass;
 					
@@ -1315,13 +1315,13 @@ define(
 					function(subviewBinding) { return !!subviewBinding.subview; }
 				).length;
 				
-				this._addSubview(subviewBinding, elementIndex);
+				if (subviewBinding.subview) { this._addSubview(subviewBinding, elementIndex); }
 			},
 			
 			_removeRepeaterSubview: function(repeaterBinding, index) {
 				var subviewBinding = repeaterBinding.subviewBindings[index];
 				
-				this._removeSubview(subviewBinding);
+				if (subviewBinding.subview) { this._removeSubview(subviewBinding); }
 				
 				repeaterBinding.subviewBindings.splice(index, 1);
 				this.repeaters[repeaterBinding.identifier].splice(index, 1);
